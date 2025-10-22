@@ -1,5 +1,9 @@
 #include "RecordBuffer.h"
 
+bool RecordBuffer::unpackBlock(const std::vector<char>& blockData, std::vector<ZipCodeRecord>& records){
+    
+}
+
 bool RecordBuffer::fieldsToRecord(const std::vector<std::string>& fields, ZipCodeRecord& record)
 {
     if (fields.size() != EXPECTED_FIELD_COUNT) 
