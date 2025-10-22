@@ -235,7 +235,7 @@ private:
 
     uint32_t blockSize; // Size of blocks used in the file
 
-    uint16_t minBlockSize; // Minimum size of blocks used in the file d(efault to 50%)
+    uint16_t minBlockSize; // Minimum size of blocks used in the file (default to 50%)
 
     std::string indexFileName; // Name of the key index file
 

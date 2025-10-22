@@ -1,9 +1,9 @@
 // ZCDUtility.cpp
-#include "HeaderRecord.h"
-#include "HeaderBuffer.h"
-#include "CSVBuffer.h"
-#include "ZipCodeRecord.h"
-#include "PrimaryKeyIndex.h"
+#include "../src/HeaderRecord.h"
+#include "../src/HeaderBuffer.h"
+#include "../src/CSVBuffer.h"
+#include "../src/ZipCodeRecord.h"
+#include "../src/PrimaryKeyIndex.h"
 #include <iostream>
 #include <fstream>
 #include <string>

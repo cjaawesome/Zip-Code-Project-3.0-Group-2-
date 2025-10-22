@@ -5,24 +5,8 @@
 #include <cstdint>
 #include <iostream>
 #include <fstream>
-#include <sstream>
 #include <algorithm>
-#include "ZipCodeRecord.h"
-
-struct ActiveBlock
-{
-    uint16_t recordCount; // Records held by this block (techncially redundant could be fetched from records vector)
-    ActiveBlock* precedingBlock; // Pointer to prior active block
-    ActiveBlock* succeedingBlock; // Pointer to succeeding active block
-    std::vector<ZipCodeRecord> records; // Records Ordered by Key
-};
-
-struct AvailBlock
-{
-    uint16_t recordCount; // Records held by this block
-    AvailBlock* succeedingBlock; // Pointer to succeeding active block
-    std::vector<char> padding; // Padding to fill block size
-};
+#include "RecordBuffer.h"
 
 class BlockBuffer
 {
@@ -57,11 +41,11 @@ class BlockBuffer
 
         /**
          * @brief Attempts to read a ZipCodeRecord from a block at a specific RBN
-         * @details Finds the correct block by RBN and reads the record if found.
+         * @details Finds the correct block by RBN and reads the record if found
          * @param rbn The RBN of the record to read
          * @return True if the record was found and read successfully
          */
-        bool readRecordAtRBN(const uint32_t rbn, ZipCodeRecord& record);
+        bool readRecordAtRBN(const uint32_t rbn, const uint32_t zipCode, ZipCodeRecord& outRecord);
 
         /**
          * @brief Attempts to remove a ZipCodeRecord from a block at a specific RBN
@@ -69,7 +53,7 @@ class BlockBuffer
          * @param rbn The RBN of the record to remove
          * @return True if the record was found and removed successfully
          */
-        bool removeRecordAtRBN(const uint32_t rbn);
+        bool removeRecordAtRBN(const uint32_t rbn, const uint32_t zipCode);
 
         /**
          * @brief Attempts to add a ZipCodeRecord to the active blocks
@@ -87,9 +71,9 @@ class BlockBuffer
 
         /**
          * @brief Get description of last error
-         * @return Error message string
+         * @return Error message string reference
          */
-        std::string getLastError() const;
+        const std::string& getLastError() const;
 
         /**
          * @brief getter for memory offset
@@ -114,42 +98,42 @@ class BlockBuffer
          * @brief Close the currently opened file
          */
         void closeFile();
+
+        /**
+         * @brief Dumps the physical order of blocks in the file to standard output
+         * @param out [IN] Output stream to write to
+         */
+        void dumpPhysicalOrder(std::ostream& out) const;
+
+        /**
+         * @brief Dumps the logical order of active blocks in the file to standard output
+         * @param out [IN] Output stream to write to
+         */
+        void dumpLogicalOrder(std::ostream& out) const;
+
+        /**
+         * @brief Get number of records processed
+         * @return Number of records processed
+         */
+        uint32_t getRecordsProcessed() const;
+
+        /**
+         * @brief Get number of blocks processed
+         * @return Number of blocks processed
+         */
+        uint32_t getBlocksProcessed() const;
+
     private:
         uint32_t recordsProcessed; // Number of records processed from input stream
         uint32_t blocksProcessed; // Number of blocks processed from input stream
         std::ifstream blockFile; // Input file stream
         std::string lastError; // Last Error Message
         bool errorState; // Has the Buffer encountered a critical error
-        bool mergeOccurred; // Tracks if a merge occurred during last add operation. Likely temporary.
-        ActiveBlock* activeBlockHead; // Head of active block linked list
-
-        /**
-         * @brief Convert string fields
-         * @param fields [IN] Vector of string fields from data file
-         * @param record [OUT] ZipCodeRecord to populate
-         * @return true if conversion successful
-         * @pre fields must contain exactly 6 valid elements
-         * @post record is populated with converted data
-         */
-        bool fieldsToRecord(const std::vector<std::string>& fields, ZipCodeRecord& record);
-        
-        /**
-         * @brief Validate that a string represents a valid integer
-         * @param str [IN] String to validate
-         * @return true if string is a valid integer
-         */
-        bool isValidUInt32(const std::string& str) const;
-        
-        /**
-         * @brief Validate that a string represents a valid double
-         * @param str [IN] String to validate  
-         * @return true if string is a valid double
-         */
-        bool isValidDouble(const std::string& str) const;
+        bool mergeOccurred; // Tracks if a merge occurred during last add operation. Likely temporary
 
         /**
          * @brief Helper function that attempt to join two blocks
-         * @details Merges records from block2 into block1 if space allows and updates pointers.
+         * @details Merges records from block2 into block1 if space allows and updates pointers
          * @param block1 [IN,OUT] First block to join
          * @param block2 [IN,OUT] Second block to join
          * @return True if blocks were joined successfully
@@ -160,15 +144,24 @@ class BlockBuffer
          * @brief Set error state with message
          * @param message [IN] Error message to set
          */
-        void setError(const std::string& message);
+        void setError(const std::string& message); 
 
         /**
-         * @brief Trim whitespace from string
-         * @param str [IN,OUT] String to trim
-         * @details Removes leading and trailing whitespace
+         * @brief Loads an active block from the rbn
+         * @details Creates a local black to populate with data from the specified RBN in the file
+         * @param rbn The RBN of the block to load
+         * @return The populated ActiveBlock
          */
-        void trimString(std::string& str);
-        
+        ActiveBlock loadActiveBlockAtRBN(const uint32_t rbn);
+
+        /**
+         * @brief Writes an active block to the rbn
+         * @details Writes the provided block data to the specified RBN in the file
+         * @param rbn The RBN of the block to write to
+         * @param block The ActiveBlock containing data to write
+         * @return True if write was successful
+         */
+        bool writeActiveBlockAtRBN(const uint32_t rbn, const ActiveBlock& block);
 };
 
 #endif // BlockBuffer

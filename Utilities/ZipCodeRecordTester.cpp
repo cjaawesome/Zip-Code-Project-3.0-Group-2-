@@ -2,7 +2,7 @@
 #include <iostream>
 #include <vector>
 #include "stdint.h"
-#include "ZipCodeRecord.h"
+#include "../src/ZipCodeRecord.h"
 
 
 int main(){
@@ -16,6 +16,8 @@ int main(){
     ZipCodeRecord a;
     ZipCodeRecord b(zipCode, latlong, latlong, place, state, county);
     std::cout << "Success! (Hopefully)\n\n";
+
+    std::cout << "Get Size of ZipCodeRecord: " << sizeof(ZipCodeRecord) << "\n\n";
 
 
     std::cout << "Getter Tests:\n";

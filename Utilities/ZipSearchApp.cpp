@@ -1,9 +1,9 @@
-#include "PrimaryKeyIndex.h"
-#include "CSVBuffer.h"
-#include "ZipCodeRecord.h"
+#include "../src/PrimaryKeyIndex.h"
+#include "../src/CSVBuffer.h"
+#include "../src/ZipCodeRecord.h"
+#include "../src/HeaderRecord.h"
+#include "../src/HeaderBuffer.h"
 #include "ZipSearchApp.h"
-#include "HeaderRecord.h"
-#include "HeaderBuffer.h"
 #include <iostream>
 #include <map>
 #include <fstream>
@@ -45,7 +45,7 @@ bool ZipSearchApp::search(int argc, char* argv[])
     CSVBuffer file;
     if(!file.openLengthIndicatedFile(fileName, header.getHeaderSize())) return false;
 
-    if(header.getHasValidIndexFile() && index.read(header.getIndexFileName()))
+    if(header.getStaleFlag() && index.read(header.getIndexFileName()))
     {
         std::cout << "Index file read successfully." << "\n" << std::endl;
         index.read(header.getIndexFileName());
@@ -59,7 +59,7 @@ bool ZipSearchApp::search(int argc, char* argv[])
             std::cout << "Index File Written Succesfully." << "\n" << std::endl;
 
             // Update header flag
-            header.setHasValidIndexFile(1);
+            header.setStaleFlag(1);
             header.setIndexFileName("zipcode_data.idx");
             
             // Rewrite just the header section of the file

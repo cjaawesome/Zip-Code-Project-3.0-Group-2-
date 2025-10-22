@@ -221,10 +221,6 @@ bool CSVBuffer::skipHeader()
     return false;
 }
 
-/**
- * @brief Parse comma-separated line into fields
- * @details Simple CSV parsing for your data format
- */
 bool CSVBuffer::parseLine(const std::string& line, std::vector<std::string>& fields)
 {
     fields.clear();
