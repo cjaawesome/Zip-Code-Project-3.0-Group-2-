@@ -1,7 +1,19 @@
 #include "RecordBuffer.h"
 
 bool RecordBuffer::unpackBlock(const std::vector<char>& blockData, std::vector<ZipCodeRecord>& records){
-    
+    records.clear();
+
+    if (blockData.empty()) return false;
+
+    //finish unpackBlock
+}
+
+bool RecordBuffer::packBlock(const std::vector<ZipCodeRecord>& records, std::vector<char>& blockData){
+    blockData.clear();
+
+    if (records.empty()) return false;
+
+    //finish packBlock
 }
 
 bool RecordBuffer::fieldsToRecord(const std::vector<std::string>& fields, ZipCodeRecord& record)
