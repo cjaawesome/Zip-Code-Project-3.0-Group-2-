@@ -7,7 +7,6 @@ bool BlockBuffer::openFile(const std::string& filename, const size_t headerSize)
     blockFile.open(filename, std::ios::binary);
     if (!blockFile) { //if file couldn't open set error
         setError("Error opening file!");
-        errorState = true;
         return false;
     }
     errorState = false;
@@ -82,11 +81,12 @@ bool BlockBuffer::tryJoinBlocks(ActiveBlock& block1, ActiveBlock& block2){
 }
 
 void BlockBuffer::setError(const std::string& message){
-
+    errorState = true;//set error state to true
+    lastError = message;//set error message
 }
 
 ActiveBlock BlockBuffer::loadActiveBlockAtRBN(const uint32_t rbn){
-
+    
 }
 
 bool BlockBuffer::writeActiveBlockAtRBN(const uint32_t rbn, const ActiveBlock& block){
