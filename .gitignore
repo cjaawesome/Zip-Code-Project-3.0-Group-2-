@@ -1,4 +1,26 @@
-.*zcd
-.*exe
-.*csv
-.*json
+# Compiled binaries
+*.exe
+*.o
+*.obj
+
+# Generated data files
+*.zcd
+*.idx
+
+# Keep CSVs for testing
+!*.csv
+
+# IDE/Editor files
+.vscode/
+*.json
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Build artifacts (if you add a build system later)
+build/
+bin/
