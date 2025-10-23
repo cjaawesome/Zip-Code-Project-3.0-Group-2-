@@ -192,6 +192,12 @@ public:
      */
     static ZipCodeRecord deserialize(const uint8_t* data, size_t length); // Read from binary format
 
+    /**
+     * @brief Get the total size of the variable length ZipCodeRecord
+     * @return Size of the ZipCodeRecord as uint32_t
+     */
+    uint32_t getRecordSize() const;
+
 private:
     uint32_t zipCode; // 5-digit zip code
     std::string locationName; // Town name

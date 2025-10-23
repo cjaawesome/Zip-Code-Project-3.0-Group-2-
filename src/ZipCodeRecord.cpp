@@ -282,3 +282,14 @@ std::ostream& operator<<(std::ostream& outputStream, const ZipCodeRecord& record
 
     return record;
  }
+
+uint32_t ZipCodeRecord::getRecordSize() const
+{
+    std::string recordStr = std::to_string(zipCode) + "," +
+                            locationName + "," +
+                            std::string(state) + "," +
+                            county + "," +
+                            std::to_string(latitude) + "," +
+                            std::to_string(longitude);
+    return 4 + recordStr.length(); // 4 bytes for length prefix + actual string length
+}

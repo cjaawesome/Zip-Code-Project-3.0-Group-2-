@@ -48,12 +48,30 @@ class BlockBuffer
         bool readRecordAtRBN(const uint32_t rbn, const uint32_t zipCode, ZipCodeRecord& outRecord);
 
         /**
+         * @brief Writes an active block to the rbn
+         * @details Writes the provided block data to the specified RBN in the file
+         * @param rbn The RBN of the block to write to
+         * @param block The ActiveBlock containing data to write
+         * @return True if write was successful
+         */
+        bool writeActiveBlockAtRBN(const uint32_t rbn, const ActiveBlock& block);
+
+        /**
+         * @brief Writes an available block to the rbn
+         * @details Writes the provided block data to the specifed RBN in the file
+         * @param rbn The RBN of the block to write to
+         * @param block The AvailBlock containing the data to write
+         * @return True if write was succesful
+         */
+        bool writeAvailBlockAtRBN(const uint32_t rbn, const AvailBlock& block);
+
+        /**
          * @brief Attempts to remove a ZipCodeRecord from a block at a specific RBN
          * @details Finds the correct block by RBN and removes the record if found
          * @param rbn The RBN of the record to remove
          * @return True if the record was found and removed successfully
          */
-        bool removeRecordAtRBN(const uint32_t rbn, const uint32_t zipCode);
+        bool removeRecordAtRBN(const uint32_t rbn, const uint16_t minBlockSize, uint32_t& availListRBN, const uint32_t zipCode);
 
         /**
          * @brief Attempts to add a ZipCodeRecord to the active blocks
@@ -61,7 +79,7 @@ class BlockBuffer
          * @param record The ZipCodeRecord to add
          * @return True if the record was added successfully
          */
-        bool addRecord(const ZipCodeRecord& record);
+        bool addRecord(const uint32_t rbn, const uint32_t blockSize, uint32_t& availListRBN, const ZipCodeRecord& record);
 
         /**
          * @brief Checks if a merge occurred during the last add operation
@@ -85,7 +103,7 @@ class BlockBuffer
          * @brief Read next block from file
          * @param block [OUT] ActiveBlock to populate
          */
-        void readNextBlock(ActiveBlock& block);
+        void readNextActiveBlock(ActiveBlock& block);
 
         /**
          * @brief Read next available block from file
@@ -123,6 +141,22 @@ class BlockBuffer
          */
         uint32_t getBlocksProcessed() const;
 
+        /**
+         * @brief Loads an active block from the RBN
+         * @details Creates a local ActiveBlock to populate with data from the specified RBN in the file
+         * @param rbn The RBN of the block to load
+         * @return The populated ActiveBlock
+         */
+        ActiveBlock loadActiveBlockAtRBN(const uint32_t rbn);
+
+        /**
+         * @brief Loads an available block from the RBN
+         * @details Creates a local AvailBlock to populate with data from the specified RBN in the file
+         * @param rbn The RBN of the block to load
+         * @return The populated AvailBlock
+         */
+        AvailBlock loadAvailBlockAtRBN(const uint32_t rbn);
+
     private:
         uint32_t recordsProcessed; // Number of records processed from input stream
         uint32_t blocksProcessed; // Number of blocks processed from input stream
@@ -130,38 +164,33 @@ class BlockBuffer
         std::string lastError; // Last Error Message
         bool errorState; // Has the Buffer encountered a critical error
         bool mergeOccurred; // Tracks if a merge occurred during last add operation. Likely temporary
+        RecordBuffer recordBuffer; // RecordBuffer for packing/unpacking records
 
         /**
-         * @brief Helper function that attempt to join two blocks
-         * @details Merges records from block2 into block1 if space allows and updates pointers
-         * @param block1 [IN,OUT] First block to join
-         * @param block2 [IN,OUT] Second block to join
-         * @return True if blocks were joined successfully
+         * @brief Allocates a new block at the end of the file
+         * @return RBN of the newly allocated block
          */
-        bool tryJoinBlocks(ActiveBlock& block1, ActiveBlock& block2);
+        uint32_t allocateBlock(uint32_t& availListRBN); 
+
+        /**
+         * @brief Try to merge two blocks
+         * @param rbn RBN of the block to be merged
+         * @param availListRBN RBN of the avail block for merging
+         * @return True if merge was successful
+         */
+        bool tryJoinBlocks(const uint32_t rbn, uint32_t& availListRBN);
+
+        /**
+         * @brief Frees a block at the specified RBN
+         * @details Push to available list
+         */
+        void freeBlock(const uint32_t rbn, uint32_t& availListRBN);
 
         /**
          * @brief Set error state with message
          * @param message [IN] Error message to set
          */
         void setError(const std::string& message); 
-
-        /**
-         * @brief Loads an active block from the rbn
-         * @details Creates a local black to populate with data from the specified RBN in the file
-         * @param rbn The RBN of the block to load
-         * @return The populated ActiveBlock
-         */
-        ActiveBlock loadActiveBlockAtRBN(const uint32_t rbn);
-
-        /**
-         * @brief Writes an active block to the rbn
-         * @details Writes the provided block data to the specified RBN in the file
-         * @param rbn The RBN of the block to write to
-         * @param block The ActiveBlock containing data to write
-         * @return True if write was successful
-         */
-        bool writeActiveBlockAtRBN(const uint32_t rbn, const ActiveBlock& block);
 };
 
 #endif // BlockBuffer

@@ -23,21 +23,76 @@ bool BlockBuffer::hasError() const{
     return errorState;
 }
 
-bool BlockBuffer::readRecordAtRBN(const uint32_t rbn, const uint32_t zipCode, ZipCodeRecord& outRecord){
-    RecordBuffer buffer;
-    blockFile.seekg(rbn); //seek random block number
+bool BlockBuffer::readRecordAtRBN(const uint32_t rbn, const uint32_t zipCode, ZipCodeRecord& outRecord)
+{
+    
+   ActiveBlock block = loadActiveBlockAtRBN(rbn); //load block at rbn
+
+   std::vector<ZipCodeRecord> records;
+   recordBuffer.unpackBlock(block.data, records); //unpack block data into records
+
+   auto it = std::find_if(records.begin(), records.end(), 
+                          [zipCode](const ZipCodeRecord& rec) { return rec.getZipCode() == zipCode; });
+
+    if (it != records.end()) 
+    {
+        outRecord = *it; // Record found
+        return true;
+    } 
+    return false;
 }
 
-bool BlockBuffer::removeRecordAtRBN(const uint32_t rbn, const uint32_t zipCode){
+bool BlockBuffer::removeRecordAtRBN(const uint32_t rbn, const uint16_t minBlockSize, uint32_t& availListRBN, const uint32_t zipCode)
+{
+    ActiveBlock block = loadActiveBlockAtRBN(rbn); //load block at rbn
 
+    std::vector<ZipCodeRecord> records;
+    recordBuffer.unpackBlock(block.data, records); //unpack block data into records
+
+    auto it = std::find_if(records.begin(), records.end(), 
+                             [zipCode](const ZipCodeRecord& rec) { return rec.getZipCode() == zipCode; });
+    if(it == records.end())
+        return false; // Record not found
+
+    records.erase(it); // Remove the record
+
+    // Need to check min block size now. Return true if above minBlockSize. Merge blocks if below minimum size.
 }
 
-bool BlockBuffer::addRecord(const ZipCodeRecord& record){
+bool BlockBuffer::addRecord(const uint32_t rbn, const uint32_t blockSize, uint32_t& availListRBN, const ZipCodeRecord& record)
+{
+    ActiveBlock block = loadActiveBlockAtRBN(rbn); //load block at rbn
 
+    std::vector<ZipCodeRecord> records;
+    recordBuffer.unpackBlock(block.data, records); //unpack block data into records
+
+    uint32_t sizeOfRecords = 0;
+    for (const auto& rec : records) 
+    {
+        sizeOfRecords += rec.getRecordSize();
+    }
+    
+    if(sizeOfRecords + record.getRecordSize() <= blockSize) 
+    {
+        records.push_back(record); // Add the new record
+        recordBuffer.packBlock(records, block.data); // Repack the block data
+        block.recordCount = static_cast<uint16_t>(records.size()); // Update record count
+        return writeActiveBlockAtRBN(rbn, block); // Write back to file
+    } 
+    // There was not enough room in the given record to add. Now need to try and merge or create new record.
+    return false;
 }
 
 bool BlockBuffer::getMergeOccurred() const{
     return mergeOccurred;
+}
+
+bool BlockBuffer::writeActiveBlockAtRBN(const uint32_t rbn, const ActiveBlock& block){
+
+}
+
+bool BlockBuffer::tryJoinBlocks(const uint32_t rbn, uint32_t& availListRBN){
+    
 }
 
 const std::string& BlockBuffer::getLastError() const{
@@ -48,7 +103,7 @@ size_t BlockBuffer::getMemoryOffset(){
     return blockFile.tellg();
 }
 
-void BlockBuffer::readNextBlock(ActiveBlock& block){
+void BlockBuffer::readNextActiveBlock(ActiveBlock& block){
 
 }
 
@@ -76,10 +131,6 @@ uint32_t BlockBuffer::getBlocksProcessed() const{
 
 }
 
-bool BlockBuffer::tryJoinBlocks(ActiveBlock& block1, ActiveBlock& block2){
-
-}
-
 void BlockBuffer::setError(const std::string& message){
     errorState = true;//set error state to true
     lastError = message;//set error message
@@ -89,6 +140,3 @@ ActiveBlock BlockBuffer::loadActiveBlockAtRBN(const uint32_t rbn){
     
 }
 
-bool BlockBuffer::writeActiveBlockAtRBN(const uint32_t rbn, const ActiveBlock& block){
-
-}
