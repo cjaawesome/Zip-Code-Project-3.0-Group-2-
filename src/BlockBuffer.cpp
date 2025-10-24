@@ -23,10 +23,10 @@ bool BlockBuffer::hasError() const{
     return errorState;
 }
 
-bool BlockBuffer::readRecordAtRBN(const uint32_t rbn, const uint32_t zipCode, ZipCodeRecord& outRecord)
+bool BlockBuffer::readRecordAtRBN(const uint32_t rbn, const uint32_t zipCode, const uint32_t blockSize, const size_t headerSize, ZipCodeRecord& outRecord)
 {
     
-   ActiveBlock block = loadActiveBlockAtRBN(rbn); //load block at rbn
+   ActiveBlock block = loadActiveBlockAtRBN(rbn, blockSize, headerSize); //load block at rbn
 
    std::vector<ZipCodeRecord> records;
    recordBuffer.unpackBlock(block.data, records); //unpack block data into records
@@ -42,9 +42,9 @@ bool BlockBuffer::readRecordAtRBN(const uint32_t rbn, const uint32_t zipCode, Zi
     return false;
 }
 
-bool BlockBuffer::removeRecordAtRBN(const uint32_t rbn, const uint16_t minBlockSize, uint32_t& availListRBN, const uint32_t zipCode)
+bool BlockBuffer::removeRecordAtRBN(const uint32_t rbn, const uint16_t minBlockSize, uint32_t& availListRBN, const uint32_t zipCode, const uint32_t blockSize, const size_t headerSize)
 {
-    ActiveBlock block = loadActiveBlockAtRBN(rbn); //load block at rbn
+    ActiveBlock block = loadActiveBlockAtRBN(rbn, blockSize, headerSize); //load block at rbn
 
     std::vector<ZipCodeRecord> records;
     recordBuffer.unpackBlock(block.data, records); //unpack block data into records
@@ -59,9 +59,9 @@ bool BlockBuffer::removeRecordAtRBN(const uint32_t rbn, const uint16_t minBlockS
     // Need to check min block size now. Return true if above minBlockSize. Merge blocks if below minimum size.
 }
 
-bool BlockBuffer::addRecord(const uint32_t rbn, const uint32_t blockSize, uint32_t& availListRBN, const ZipCodeRecord& record)
+bool BlockBuffer::addRecord(const uint32_t rbn, const uint32_t blockSize, uint32_t& availListRBN, const ZipCodeRecord& record, const size_t headerSize)
 {
-    ActiveBlock block = loadActiveBlockAtRBN(rbn); //load block at rbn
+    ActiveBlock block = loadActiveBlockAtRBN(rbn, blockSize, headerSize); //load block at rbn
 
     std::vector<ZipCodeRecord> records;
     recordBuffer.unpackBlock(block.data, records); //unpack block data into records
@@ -136,7 +136,31 @@ void BlockBuffer::setError(const std::string& message){
     lastError = message;//set error message
 }
 
-ActiveBlock BlockBuffer::loadActiveBlockAtRBN(const uint32_t rbn){
-    
+ActiveBlock BlockBuffer::loadActiveBlockAtRBN(const uint32_t rbn, const uint32_t blockSize, const size_t headerSize){
+    ActiveBlock block;
+    if (!blockFile.is_open()) {
+        setError("file not open");
+        return block;
+    }
+
+    std::streampos offset = headerSize + static_cast<std::streampos>(rbn) * blockSize;
+    blockFile.seekg(offset);
+
+    if (!blockFile.good()) {
+        setError("failed to seek RBN number");
+        return block;
+    }
+
+    std::vector<char> buffer(blockSize, 0);
+    blockFile.read(buffer.data(), blockSize);
+
+    if (blockFile.gcount() == 0) {
+        setError("Failed to read block from file.");
+        return block;
+    }
+
+
+    //I GIVE UP AGGGGGGGGH -cooper
+
 }
 

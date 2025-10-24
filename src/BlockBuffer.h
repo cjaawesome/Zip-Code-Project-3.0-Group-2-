@@ -45,7 +45,7 @@ class BlockBuffer
          * @param rbn The RBN of the record to read
          * @return True if the record was found and read successfully
          */
-        bool readRecordAtRBN(const uint32_t rbn, const uint32_t zipCode, ZipCodeRecord& outRecord);
+        bool readRecordAtRBN(const uint32_t rbn, const uint32_t zipCode, const uint32_t blockSize, const size_t headerSize, ZipCodeRecord& outRecord);
 
         /**
          * @brief Writes an active block to the rbn
@@ -71,7 +71,7 @@ class BlockBuffer
          * @param rbn The RBN of the record to remove
          * @return True if the record was found and removed successfully
          */
-        bool removeRecordAtRBN(const uint32_t rbn, const uint16_t minBlockSize, uint32_t& availListRBN, const uint32_t zipCode);
+        bool removeRecordAtRBN(const uint32_t rbn, const uint16_t minBlockSize, uint32_t& availListRBN, const uint32_t zipCode, const uint32_t blockSize, const size_t headerSize);
 
         /**
          * @brief Attempts to add a ZipCodeRecord to the active blocks
@@ -79,7 +79,7 @@ class BlockBuffer
          * @param record The ZipCodeRecord to add
          * @return True if the record was added successfully
          */
-        bool addRecord(const uint32_t rbn, const uint32_t blockSize, uint32_t& availListRBN, const ZipCodeRecord& record);
+        bool addRecord(const uint32_t rbn, const uint32_t blockSize, uint32_t& availListRBN, const ZipCodeRecord& record, const size_t headerSize);
 
         /**
          * @brief Checks if a merge occurred during the last add operation
@@ -147,7 +147,7 @@ class BlockBuffer
          * @param rbn The RBN of the block to load
          * @return The populated ActiveBlock
          */
-        ActiveBlock loadActiveBlockAtRBN(const uint32_t rbn);
+        ActiveBlock loadActiveBlockAtRBN(const uint32_t rbn, const uint32_t blockSize, const size_t headerSize);
 
         /**
          * @brief Loads an available block from the RBN
@@ -155,7 +155,7 @@ class BlockBuffer
          * @param rbn The RBN of the block to load
          * @return The populated AvailBlock
          */
-        AvailBlock loadAvailBlockAtRBN(const uint32_t rbn);
+        AvailBlock loadAvailBlockAtRBN(const uint32_t rbn, const uint32_t blockSize, const size_t headerSize);
 
     private:
         uint32_t recordsProcessed; // Number of records processed from input stream
