@@ -2,6 +2,7 @@
 #include <fstream>
 #include <iostream>
 #include <string>
+#include <algorithm>
 
 const std::string ENDOFFILE = "|";
 
@@ -12,7 +13,17 @@ BlockIndexFile::~BlockIndexFile(){
 }
 
 void BlockIndexFile::addIndexEntry(const IndexEntry& entry){
-    indexEntries.push_back(entry);
+    if(indexEntries.empty()){
+        indexEntries.push_back(entry);
+        return;
+    }
+
+    for(int i = 0; i < indexEntries.size(); i++){
+        if(indexEntries[i].key < entry.key){
+            indexEntries.insert(indexEntries.begin() + i, entry);
+            return;
+        }
+    }
 }
 
 
