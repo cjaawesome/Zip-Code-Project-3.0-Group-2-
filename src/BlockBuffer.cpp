@@ -4,7 +4,7 @@
 
 
 bool BlockBuffer::openFile(const std::string& filename, const size_t headerSize){
-    blockFile.open(filename, std::ios::binary);
+    blockFile.open(filename, std::ios::binary | std::ios::in | std::ios::out);
     if (!blockFile) { //if file couldn't open set error
         setError("Error opening file!");
         return false;
@@ -77,7 +77,7 @@ bool BlockBuffer::addRecord(const uint32_t rbn, const uint32_t blockSize, uint32
         records.push_back(record); // Add the new record
         recordBuffer.packBlock(records, block.data); // Repack the block data
         block.recordCount = static_cast<uint16_t>(records.size()); // Update record count
-        return writeActiveBlockAtRBN(rbn, block); // Write back to file
+        return writeActiveBlockAtRBN(rbn, blockSize, headerSize, block); // Write back to file
     } 
     // There was not enough room in the given record to add. Now need to try and merge or create new record.
     return false;
@@ -87,8 +87,40 @@ bool BlockBuffer::getMergeOccurred() const{
     return mergeOccurred;
 }
 
-bool BlockBuffer::writeActiveBlockAtRBN(const uint32_t rbn, const ActiveBlock& block){
+bool BlockBuffer::writeActiveBlockAtRBN(const uint32_t rbn, const uint32_t blockSize, const size_t headerSize, const ActiveBlock& block)
+{
+    if (!blockFile.is_open()) 
+    {
+        setError("file not open");
+        return false;
+    }
 
+    // Calculate position
+    std::streampos offset = headerSize + static_cast<std::streampos>(rbn) * blockSize;
+    blockFile.seekp(offset);
+
+    if (!blockFile.good()) 
+    {
+        setError("failed to seek to RBN");
+        return false;
+    }
+
+    // Write metadata
+    blockFile.write(reinterpret_cast<const char*>(&block.recordCount), sizeof(uint16_t));
+    blockFile.write(reinterpret_cast<const char*>(&block.precedingRBN), sizeof(uint32_t));
+    blockFile.write(reinterpret_cast<const char*>(&block.succeedingRBN), sizeof(uint32_t));
+
+    // Write block data
+    blockFile.write(block.data.data(), block.data.size());
+
+    // Padding
+    size_t bytesWritten = 10 + block.data.size(); // 10 = metadata size
+    if (bytesWritten < blockSize) {
+        std::vector<char> padding(blockSize - bytesWritten, 0);
+        blockFile.write(padding.data(), padding.size());
+    }
+
+    return blockFile.good();
 }
 
 bool BlockBuffer::tryJoinBlocks(const uint32_t rbn, uint32_t& availListRBN){
@@ -138,7 +170,8 @@ void BlockBuffer::setError(const std::string& message){
 
 ActiveBlock BlockBuffer::loadActiveBlockAtRBN(const uint32_t rbn, const uint32_t blockSize, const size_t headerSize){
     ActiveBlock block;
-    if (!blockFile.is_open()) { //if file can't open set error
+    if (!blockFile.is_open()) 
+    {
         setError("file not open");
         return block;
     }
@@ -146,22 +179,27 @@ ActiveBlock BlockBuffer::loadActiveBlockAtRBN(const uint32_t rbn, const uint32_t
     std::streampos offset = headerSize + static_cast<std::streampos>(rbn) * blockSize;
     blockFile.seekg(offset);
 
-    if (!blockFile.good()) { //if seek was out of file set error
+    if (!blockFile.good()) 
+    {
         setError("failed to seek RBN number");
         return block;
     }
 
-    block.succeedingRBN = rbn + 1;
-    block.precedingRBN = rbn - 1;
-    blockFile.read(block.data.data(), blockSize); //read block into block.data
+    // Read metadata
+    blockFile.read(reinterpret_cast<char*>(&block.recordCount), sizeof(uint16_t));
+    blockFile.read(reinterpret_cast<char*>(&block.precedingRBN), sizeof(uint32_t));
+    blockFile.read(reinterpret_cast<char*>(&block.succeedingRBN), sizeof(uint32_t));
 
-    if (blockFile.gcount() == 0) { //if failed to read data set error
-        setError("Failed to read block from file.");
+    // Read remaining block data
+    size_t dataSize = blockSize - 10; // 10 = sizeof(uint16_t) + 2*sizeof(uint32_t)
+    block.data.resize(dataSize);
+    blockFile.read(block.data.data(), dataSize);
+
+    if (blockFile.gcount() != dataSize) 
+    {
+        setError("Failed to read block data from file.");
         return block;
     }
-    
-
-    
     return block;
 }
 
