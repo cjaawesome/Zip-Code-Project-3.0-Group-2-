@@ -138,7 +138,7 @@ void BlockBuffer::setError(const std::string& message){
 
 ActiveBlock BlockBuffer::loadActiveBlockAtRBN(const uint32_t rbn, const uint32_t blockSize, const size_t headerSize){
     ActiveBlock block;
-    if (!blockFile.is_open()) {
+    if (!blockFile.is_open()) { //if file can't open set error
         setError("file not open");
         return block;
     }
@@ -146,16 +146,16 @@ ActiveBlock BlockBuffer::loadActiveBlockAtRBN(const uint32_t rbn, const uint32_t
     std::streampos offset = headerSize + static_cast<std::streampos>(rbn) * blockSize;
     blockFile.seekg(offset);
 
-    if (!blockFile.good()) {
+    if (!blockFile.good()) { //if seek was out of file set error
         setError("failed to seek RBN number");
         return block;
     }
 
     block.succeedingRBN = rbn + 1;
     block.precedingRBN = rbn - 1;
-    blockFile.read(block.data.data(), blockSize);
+    blockFile.read(block.data.data(), blockSize); //read block into block.data
 
-    if (blockFile.gcount() == 0) {
+    if (blockFile.gcount() == 0) { //if failed to read data set error
         setError("Failed to read block from file.");
         return block;
     }
