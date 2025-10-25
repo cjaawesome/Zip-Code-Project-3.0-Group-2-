@@ -8,6 +8,7 @@
 #include <fstream>
 #include <string>
 #include <cstring>
+#include <algorithm>
 
 void printUsage(const char* programName) 
 {
@@ -77,7 +78,7 @@ bool convertCSVtoZCD(const std::string& inFile, const std::string& outFile)
     }
     
     std::cout << "Converting " << inFile << " to " << outFile << "..." << std::endl;
-    
+
     ZipCodeRecord record;
     while (csvBuffer.getNextRecord(record))
     {
@@ -92,7 +93,37 @@ bool convertCSVtoZCD(const std::string& inFile, const std::string& outFile)
         out.write(reinterpret_cast<char*>(&len), 4);
         out.write(recordStr.c_str(), len);
     }
-    
+
+
+// In memory ZipCode sort for the blocks. May be changed to a merge sort later for memory purposes.
+/*
+    std::vector<ZipCodeRecord> allRecords;
+    ZipCodeRecord record;
+    while (csvBuffer.getNextRecord(record)) 
+    {
+        allRecords.push_back(record);
+
+    }
+
+    std::sort(allRecords.begin(), allRecords.end(), 
+    [](const ZipCodeRecord& a, const ZipCodeRecord& b) 
+    {
+        return a.getZipCode() < b.getZipCode();
+    });
+
+    for (const auto& rec : allRecords) 
+    {
+    std::string recordStr = std::to_string(record.getZipCode()) + "," +
+                               record.getLocationName() + "," +
+                               std::string(record.getState()) + "," +
+                               record.getCounty() + "," +
+                               std::to_string(record.getLatitude()) + "," +
+                               std::to_string(record.getLongitude());
+    uint32_t len = recordStr.length();
+    out.write(reinterpret_cast<char*>(&len), 4);
+    out.write(recordStr.c_str(), len);
+    }
+*/
     uint32_t actualRecordCount = csvBuffer.getRecordsProcessed();
     out.seekp(recordCountOffset);
     out.write(reinterpret_cast<char*>(&actualRecordCount), sizeof(uint32_t));
