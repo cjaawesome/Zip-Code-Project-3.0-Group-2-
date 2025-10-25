@@ -151,16 +151,17 @@ ActiveBlock BlockBuffer::loadActiveBlockAtRBN(const uint32_t rbn, const uint32_t
         return block;
     }
 
-    std::vector<char> buffer(blockSize, 0);
-    blockFile.read(buffer.data(), blockSize);
+    block.succeedingRBN = rbn + 1;
+    block.precedingRBN = rbn - 1;
+    blockFile.read(block.data.data(), blockSize);
 
     if (blockFile.gcount() == 0) {
         setError("Failed to read block from file.");
         return block;
     }
+    
 
-
-    //I GIVE UP AGGGGGGGGH -cooper
-
+    
+    return block;
 }
 
