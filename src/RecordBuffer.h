@@ -38,7 +38,7 @@ public:
      * @param blockData [OUT] Vector to populate with packed block data
      * @return True if packing was successful
      */
-    bool packBlock(const std::vector<ZipCodeRecord>& records, std::vector<char>& blockData);
+    bool packBlock(const std::vector<ZipCodeRecord>& records, std::vector<char>& blockData, const uint32_t blockSize);
     
     /**
      * @brief Checks if the buffer is in an error state
@@ -51,6 +51,14 @@ public:
      * @return Error message string reference
      */
     std::string getLastError() const;
+
+    /**
+     * @brief Parses comma seperated ZipCodeRecord.
+     * @param recordStr The incoming ZipCode data as a string
+     * @param record The incoming record object to be modified
+     * @return True if parsing was successful
+     */
+    bool parseZipCodeRecord(const std::string& recordStr, ZipCodeRecord& record);
 
 private:
     bool errorState; // Has the RecordBuffer encountered a critical error

@@ -1,8 +1,6 @@
 #include "BlockBuffer.h"
 #include "RecordBuffer.h"
 
-
-
 bool BlockBuffer::openFile(const std::string& filename, const size_t headerSize){
     blockFile.open(filename, std::ios::binary | std::ios::in | std::ios::out);
     if (!blockFile) { //if file couldn't open set error
@@ -46,6 +44,8 @@ bool BlockBuffer::removeRecordAtRBN(const uint32_t rbn, const uint16_t minBlockS
 {
     ActiveBlock block = loadActiveBlockAtRBN(rbn, blockSize, headerSize); //load block at rbn
 
+    size_t currentBlockSize = sizeof(uint16_t) + sizeof(uint32_t) + sizeof(uint32_t); // Initialize current block size with metadata size
+
     std::vector<ZipCodeRecord> records;
     recordBuffer.unpackBlock(block.data, records); //unpack block data into records
 
@@ -56,7 +56,23 @@ bool BlockBuffer::removeRecordAtRBN(const uint32_t rbn, const uint16_t minBlockS
 
     records.erase(it); // Remove the record
 
-    // Need to check min block size now. Return true if above minBlockSize. Merge blocks if below minimum size.
+    for(const auto& record : records)
+    {
+        currentBlockSize += record.getRecordSize();
+        currentBlockSize += 4;
+
+    }
+
+    if(currentBlockSize < minBlockSize)
+    {
+        // Implement merging of blocks down the doubly linked block list. Use the avail block list.
+    }
+    else
+    {
+        recordBuffer.packBlock(records, block.data, blockSize);
+        block.recordCount = static_cast<uint16_t>(records.size());
+        return writeActiveBlockAtRBN(rbn, blockSize, headerSize, block);
+    }
 }
 
 bool BlockBuffer::addRecord(const uint32_t rbn, const uint32_t blockSize, uint32_t& availListRBN, const ZipCodeRecord& record, const size_t headerSize)
@@ -66,20 +82,29 @@ bool BlockBuffer::addRecord(const uint32_t rbn, const uint32_t blockSize, uint32
     std::vector<ZipCodeRecord> records;
     recordBuffer.unpackBlock(block.data, records); //unpack block data into records
 
-    uint32_t sizeOfRecords = 0;
+    uint32_t sizeOfRecords = sizeof(uint16_t) + sizeof(uint32_t) + sizeof(uint32_t); // Initialize current block size with metadata size
+
     for (const auto& rec : records) 
     {
         sizeOfRecords += rec.getRecordSize();
+        sizeOfRecords += 4;
     }
     
-    if(sizeOfRecords + record.getRecordSize() <= blockSize) 
+    if(sizeOfRecords + record.getRecordSize() + 4 <= blockSize) 
     {
         records.push_back(record); // Add the new record
-        recordBuffer.packBlock(records, block.data); // Repack the block data
+        std::sort(records.begin(), records.end(), [](const ZipCodeRecord& a, const ZipCodeRecord& b) 
+        {
+            return a.getZipCode() < b.getZipCode(); // Sort the records again
+        });
+        recordBuffer.packBlock(records, block.data, blockSize); // Repack the block data
         block.recordCount = static_cast<uint16_t>(records.size()); // Update record count
         return writeActiveBlockAtRBN(rbn, blockSize, headerSize, block); // Write back to file
     } 
-    // There was not enough room in the given record to add. Now need to try and merge or create new record.
+    else
+    {
+        // There was not enough room in the given record to add. Need to split or allocate new block.
+    }
     return false;
 }
 
@@ -156,11 +181,11 @@ void BlockBuffer::dumpLogicalOrder(std::ostream& out) const{
 }
 
 uint32_t BlockBuffer::getRecordsProcessed() const{
-
+    return recordsProcessed;
 }
 
 uint32_t BlockBuffer::getBlocksProcessed() const{
-
+    return blocksProcessed;
 }
 
 void BlockBuffer::setError(const std::string& message){

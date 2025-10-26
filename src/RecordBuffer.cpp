@@ -1,19 +1,82 @@
 #include "RecordBuffer.h"
 
-bool RecordBuffer::unpackBlock(const std::vector<char>& blockData, std::vector<ZipCodeRecord>& records){
+bool RecordBuffer::unpackBlock(const std::vector<char>& blockData, std::vector<ZipCodeRecord>& records)
+{
     records.clear();
 
     if (blockData.empty()) return false;
 
-    //finish unpackBlock
+    size_t offset = 0;
+
+    while(offset + 4 <= blockData.size())
+    {
+        uint32_t lengthPrefix;
+        std::memcpy(&lengthPrefix, &blockData[offset], sizeof(uint32_t));
+        offset += 4;
+
+        if (lengthPrefix == 0 || offset + lengthPrefix  > blockData.size())
+            break;
+
+        std::string recordStr(blockData.begin() + offset, blockData.begin() + offset + lengthPrefix);
+
+        offset += lengthPrefix;
+        
+        ZipCodeRecord record;
+        if(!parseZipCodeRecord(recordStr, record))
+        {
+            setError("Error Parsing ZipCodeRecord within Unpack Block. Block Skipped.");
+            return false;
+        }
+        records.push_back(record);
+    }
+    return true;
 }
 
-bool RecordBuffer::packBlock(const std::vector<ZipCodeRecord>& records, std::vector<char>& blockData){
+bool RecordBuffer::packBlock(const std::vector<ZipCodeRecord>& records, std::vector<char>& blockData, const uint32_t blockSize)
+{
     blockData.clear();
-
     if (records.empty()) return false;
 
-    //finish packBlock
+    uint32_t lengthPrefix;
+    blockData.reserve(blockSize);
+    for(const auto& record : records)
+    {
+        lengthPrefix = record.getRecordSize();
+
+        if (blockData.size() + sizeof(uint32_t) + lengthPrefix > blockSize) 
+        {
+           setError("Block size exceeded during packing");
+           return false;
+        }
+        
+        size_t oldSize = blockData.size();
+        blockData.resize(oldSize + sizeof(uint32_t));
+        std::memcpy(&blockData[oldSize], &lengthPrefix, sizeof(uint32_t));
+
+        std::string recordStr = std::to_string(record.getZipCode()) + "," +
+                               record.getLocationName() + "," +
+                               std::string(record.getState()) + "," +
+                               record.getCounty() + "," +
+                               std::to_string(record.getLatitude()) + "," +
+                               std::to_string(record.getLongitude());
+
+        blockData.insert(blockData.end(), recordStr.begin(), recordStr.end());
+    }
+    return true;
+}
+
+bool RecordBuffer::parseZipCodeRecord(const std::string& recordStr, ZipCodeRecord& record)
+{
+    std::vector<std::string> fields;
+    std::stringstream ss(recordStr);
+    std::string field;
+
+    while(std::getline(ss, field, ','))
+    {
+        trimString(field);
+        fields.push_back(field);
+    }
+    return fieldsToRecord(fields, record);
 }
 
 bool RecordBuffer::fieldsToRecord(const std::vector<std::string>& fields, ZipCodeRecord& record)
