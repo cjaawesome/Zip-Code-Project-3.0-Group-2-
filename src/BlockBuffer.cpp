@@ -138,30 +138,53 @@ void BlockBuffer::setError(const std::string& message){
 
 ActiveBlock BlockBuffer::loadActiveBlockAtRBN(const uint32_t rbn, const uint32_t blockSize, const size_t headerSize){
     ActiveBlock block;
-    if (!blockFile.is_open()) { //if file can't open set error
+    if (!blockFile.is_open()) {
         setError("file not open");
         return block;
     }
 
-    std::streampos offset = headerSize + static_cast<std::streampos>(rbn) * blockSize;
-    blockFile.seekg(offset);
+    std::streampos offset = headerSize + static_cast<std::streampos>(rbn) * blockSize; //calculate offset of block
+    blockFile.seekg(offset); //seek block position
 
-    if (!blockFile.good()) { //if seek was out of file set error
+    if (!blockFile.good()) {
         setError("failed to seek RBN number");
         return block;
     }
 
-    block.succeedingRBN = rbn + 1;
-    block.precedingRBN = rbn - 1;
-    blockFile.read(block.data.data(), blockSize); //read block into block.data
+    // Read the raw block bytes into a temporary buffer
+    std::vector<char> raw(blockSize);
+    blockFile.read(raw.data(), static_cast<std::streamsize>(blockSize));
 
-    if (blockFile.gcount() == 0) { //if failed to read data set error
+    std::streamsize bytesRead = blockFile.gcount();
+    if (bytesRead <= 0) {
         setError("Failed to read block from file.");
         return block;
     }
-    
 
-    
+    // The on-disk block layout is expected to begin with metadata fields in this order:
+    // [uint16_t recordCount][uint32_t precedingRBN][uint32_t succeedingRBN][payload...]
+    const size_t metaSize = sizeof(uint16_t) + sizeof(uint32_t) + sizeof(uint32_t);
+    if (static_cast<size_t>(bytesRead) < metaSize) {
+        setError("Block too small to contain header metadata");
+        return block;
+    }
+
+    // Copy metadata into the ActiveBlock structure
+    size_t offsetIdx = 0;
+    memcpy(&block.recordCount, raw.data() + offsetIdx, sizeof(block.recordCount));
+    offsetIdx += sizeof(block.recordCount); //reads in block data and adds to offset
+    memcpy(&block.precedingRBN, raw.data() + offsetIdx, sizeof(block.precedingRBN));
+    offsetIdx += sizeof(block.precedingRBN); //reads in preceding RBN and adds to offset
+    memcpy(&block.succeedingRBN, raw.data() + offsetIdx, sizeof(block.succeedingRBN));
+    offsetIdx += sizeof(block.succeedingRBN); //reads in succeeding RBN and adds to offset
+
+    // Store the remaining bytes as the payload/data portion of the block
+    if (static_cast<size_t>(bytesRead) > offsetIdx) {
+        block.data.assign(raw.begin() + offsetIdx, raw.begin() + bytesRead);
+    } else {
+        block.data.clear();
+    }
+
     return block;
 }
 
