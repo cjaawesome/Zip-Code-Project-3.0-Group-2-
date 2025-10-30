@@ -87,7 +87,7 @@ bool BlockBuffer::getMergeOccurred() const{
     return mergeOccurred;
 }
 
-bool BlockBuffer::writeActiveBlockAtRBN(const uint32_t rbn, const ActiveBlock& block){
+bool BlockBuffer::writeActiveBlockAtRBN(const uint32_t rbn, const uint32_t blockSize, const size_t headerSize, const ActiveBlock& block){
 
 }
 
