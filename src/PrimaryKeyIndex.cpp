@@ -123,8 +123,6 @@ bool PrimaryKeyIndex::contains(const uint32_t zip) const{
     return (secondaryContains(zip) != -1);
 }
 
-
-
 void PrimaryKeyIndex::listAddManager(const ZipCodeRecord& zipRecord, const size_t& memoryOffset)
 {
     SecondaryIndexEntry sEntry;
@@ -193,7 +191,6 @@ int PrimaryKeyIndex::addPrimary(SecondaryIndexEntry& sEntry, const PrimaryIndexE
         sEntry.arrayIndex = size;
         return size;
     }
-
     //if not empty and chain has started traverse to end of chain of primary indexs and adds to the end of list
     int index = sEntry.arrayIndex;
     while(primaryEntries[index].nextIndex != -1){

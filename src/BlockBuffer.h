@@ -54,7 +54,7 @@ class BlockBuffer
          * @param block The ActiveBlock containing data to write
          * @return True if write was successful
          */
-        bool writeActiveBlockAtRBN(const uint32_t rbn, const ActiveBlock& block);
+        bool writeActiveBlockAtRBN(const uint32_t rbn, const uint32_t blockSize, const size_t headerSize, const ActiveBlock& block);
 
         /**
          * @brief Writes an available block to the rbn
@@ -160,7 +160,7 @@ class BlockBuffer
     private:
         uint32_t recordsProcessed; // Number of records processed from input stream
         uint32_t blocksProcessed; // Number of blocks processed from input stream
-        std::ifstream blockFile; // Input file stream
+        std::fstream blockFile; // Input file stream
         std::string lastError; // Last Error Message
         bool errorState; // Has the Buffer encountered a critical error
         bool mergeOccurred; // Tracks if a merge occurred during last add operation. Likely temporary

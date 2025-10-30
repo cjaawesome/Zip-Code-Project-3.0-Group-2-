@@ -56,7 +56,8 @@ std::size_t DataManager::processFromCsv(const std::string& csvPath)
         {
             processRecord(rec);
             ++processed;
-        } else if (buf.hasError()) 
+        } 
+        else if (buf.hasError()) 
         {
             std::cerr << "Parse error on line " << buf.getCurrentLineNumber()
                       << ": " << buf.getLastError() << "\n";

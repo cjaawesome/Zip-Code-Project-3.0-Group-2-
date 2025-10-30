@@ -67,9 +67,12 @@ bool BlockIndexFile::read(const std::string& filename){
 }
 
 
-uint32_t BlockIndexFile::findRBNForKey(const uint32_t zipCode) const{
-    for(const auto& index : indexEntries){
-        if(index.key == zipCode) return index.recordRBN;
+uint32_t BlockIndexFile::findRBNForKey(const uint32_t zipCode) const
+{
+    for(const auto& index : indexEntries)
+    {
+        if(zipCode <= index.key) 
+            return index.recordRBN;
     }
-    return UINT32_MAX;
+    return -1;
 }
