@@ -75,9 +75,9 @@ bool BlockBuffer::addRecord(const uint32_t rbn, const uint32_t blockSize, uint32
     if(sizeOfRecords + record.getRecordSize() <= blockSize) 
     {
         records.push_back(record); // Add the new record
-        recordBuffer.packBlock(records, block.data); // Repack the block data
+        recordBuffer.packBlock(records, block.data, blockSize); // Repack the block data
         block.recordCount = static_cast<uint16_t>(records.size()); // Update record count
-        return writeActiveBlockAtRBN(rbn, block); // Write back to file
+        return writeActiveBlockAtRBN(rbn, blockSize, headerSize, block); // Write back to file
     } 
     // There was not enough room in the given record to add. Now need to try and merge or create new record.
     return false;
