@@ -43,7 +43,10 @@ bool RecordBuffer::packBlock(const std::vector<ZipCodeRecord>& records, std::vec
     {
         lengthPrefix = record.getRecordSize();
 
-        if (blockData.size() + sizeof(uint32_t) + lengthPrefix > blockSize) 
+        size_t totalBlockSize = sizeof(uint16_t) + sizeof(uint32_t) + sizeof(uint32_t) + 
+                                sizeof(uint32_t) + blockData.size() + lengthPrefix;            
+
+        if (totalBlockSize > blockSize) 
         {
            setError("Block size exceeded during packing");
            return false;

@@ -191,6 +191,18 @@ class BlockBuffer
          * @param message [IN] Error message to set
          */
         void setError(const std::string& message); 
+
+        bool tryBorrowFromPreceding(ActiveBlock& block, ActiveBlock& precedingBlock,
+                           std::vector<ZipCodeRecord>& records,
+                           std::vector<ZipCodeRecord>& precedingRecords,
+                           const uint32_t blockSize, const uint16_t minBlockSize,
+                           const size_t headerSize, const uint32_t rbn);
+
+    bool tryBorrowFromSucceeding(ActiveBlock& block, ActiveBlock& succeedingBlock,
+                                std::vector<ZipCodeRecord>& records,
+                                std::vector<ZipCodeRecord>& succeedingRecords,
+                                const uint32_t blockSize, const uint16_t minBlockSize,
+                                const size_t headerSize, const uint32_t rbn);
 };
 
 #endif // BlockBuffer

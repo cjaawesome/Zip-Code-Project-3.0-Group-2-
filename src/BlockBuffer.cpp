@@ -56,7 +56,49 @@ bool BlockBuffer::removeRecordAtRBN(const uint32_t rbn, const uint16_t minBlockS
 
     records.erase(it); // Remove the record
 
-    // Need to check min block size now. Return true if above minBlockSize. Merge blocks if below minimum size.
+    if(block.getTotalSize() < minBlockSize)
+    {
+        // Try preceding block first
+        if (block.precedingRBN != 0) 
+        {
+            ActiveBlock precedingBlock = loadActiveBlockAtRBN(block.precedingRBN, blockSize, headerSize);
+            std::vector<ZipCodeRecord> precedingRecords;
+            recordBuffer.unpackBlock(precedingBlock.data, precedingRecords);
+            
+            if (tryBorrowFromPreceding(block, precedingBlock, records, precedingRecords, 
+                                    blockSize, minBlockSize, headerSize, rbn)) 
+            {
+                mergeOccurred = true;
+                return true;
+            }
+        }
+    
+        // Try succeeding block if preceding didn't work
+        if (block.succeedingRBN != 0) 
+        {
+            ActiveBlock succeedingBlock = loadActiveBlockAtRBN(block.succeedingRBN, blockSize, headerSize);
+            std::vector<ZipCodeRecord> succeedingRecords;
+            recordBuffer.unpackBlock(succeedingBlock.data, succeedingRecords);
+            
+            if (tryBorrowFromSucceeding(block, succeedingBlock, records, succeedingRecords,
+                                        blockSize, minBlockSize, headerSize, rbn)) 
+            {
+                mergeOccurred = true;
+                return true;
+            }
+        }
+    
+        // Couldn't borrow from either - write underfull block
+        recordBuffer.packBlock(records, block.data, blockSize);
+        block.recordCount = static_cast<uint16_t>(records.size());
+        return writeActiveBlockAtRBN(rbn, blockSize, headerSize, block);
+    }
+    else // Block is still acceptable size after removal
+    {
+        recordBuffer.packBlock(records, block.data, blockSize);
+        block.recordCount = static_cast<uint16_t>(records.size());
+        return writeActiveBlockAtRBN(rbn, blockSize, headerSize, block);
+    }
 }
 
 bool BlockBuffer::addRecord(const uint32_t rbn, const uint32_t blockSize, uint32_t& availListRBN, const ZipCodeRecord& record, const size_t headerSize)
@@ -188,3 +230,104 @@ ActiveBlock BlockBuffer::loadActiveBlockAtRBN(const uint32_t rbn, const uint32_t
     return block;
 }
 
+bool BlockBuffer::tryBorrowFromPreceding(ActiveBlock& block, ActiveBlock& precedingBlock,
+                                        std::vector<ZipCodeRecord>& records,
+                                        std::vector<ZipCodeRecord>& precedingRecords,
+                                        const uint32_t blockSize, const uint16_t minBlockSize,
+                                        const size_t headerSize, const uint32_t rbn)
+{
+    bool borrowed = false;
+    
+    for(int i = precedingRecords.size() - 1; i >= 0; --i)
+    {
+        if((precedingRecords[i].getRecordSize() + block.getTotalSize() + 4 <= blockSize) && 
+            (precedingBlock.getTotalSize() - precedingRecords[i].getRecordSize() - 4 >= minBlockSize))
+        {
+            ZipCodeRecord temp = precedingRecords[i];
+            precedingRecords.erase(precedingRecords.begin() + i);
+            records.push_back(temp);
+            borrowed = true;
+        }
+        else
+        {
+            break;
+        }
+    }
+    
+    if (!borrowed) return false;
+    
+    // Sort both vectors
+    std::sort(records.begin(), records.end(), 
+        [](const ZipCodeRecord& a, const ZipCodeRecord& b) 
+        {
+            return a.getZipCode() < b.getZipCode();
+        });
+    std::sort(precedingRecords.begin(), precedingRecords.end(), 
+        [](const ZipCodeRecord& a, const ZipCodeRecord& b) 
+        {
+            return a.getZipCode() < b.getZipCode();
+        });
+    
+    // Pack both blocks
+    recordBuffer.packBlock(records, block.data, blockSize);
+    recordBuffer.packBlock(precedingRecords, precedingBlock.data, blockSize);
+    
+    // Update counts
+    block.recordCount = static_cast<uint16_t>(records.size());
+    precedingBlock.recordCount = static_cast<uint16_t>(precedingRecords.size());
+    
+    // Write both blocks
+    return (writeActiveBlockAtRBN(rbn, blockSize, headerSize, block) && 
+            writeActiveBlockAtRBN(block.precedingRBN, blockSize, headerSize, precedingBlock));
+}
+
+bool BlockBuffer::tryBorrowFromSucceeding(ActiveBlock& block, ActiveBlock& succeedingBlock,
+                                         std::vector<ZipCodeRecord>& records,
+                                         std::vector<ZipCodeRecord>& succeedingRecords,
+                                         const uint32_t blockSize, const uint16_t minBlockSize,
+                                         const size_t headerSize, const uint32_t rbn)
+{
+    bool borrowed = false;
+    
+    while(!succeedingRecords.empty())
+    {
+        if((succeedingRecords[0].getRecordSize() + block.getTotalSize() + 4 <= blockSize) && 
+            (succeedingBlock.getTotalSize() - succeedingRecords[0].getRecordSize() - 4 >= minBlockSize))
+        {
+            ZipCodeRecord temp = succeedingRecords[0];
+            succeedingRecords.erase(succeedingRecords.begin());
+            records.push_back(temp);
+            borrowed = true;
+        }
+        else
+        {
+            break;
+        }
+    }
+    
+    if (!borrowed) return false;
+    
+    // Sort both vectors
+    std::sort(records.begin(), records.end(), 
+        [](const ZipCodeRecord& a, const ZipCodeRecord& b) 
+        {
+            return a.getZipCode() < b.getZipCode();
+        });
+    std::sort(succeedingRecords.begin(), succeedingRecords.end(), 
+        [](const ZipCodeRecord& a, const ZipCodeRecord& b) 
+        {
+            return a.getZipCode() < b.getZipCode();
+        });
+    
+    // Pack both blocks
+    recordBuffer.packBlock(records, block.data, blockSize);
+    recordBuffer.packBlock(succeedingRecords, succeedingBlock.data, blockSize);
+    
+    // Update counts
+    block.recordCount = static_cast<uint16_t>(records.size());
+    succeedingBlock.recordCount = static_cast<uint16_t>(succeedingRecords.size());
+    
+    // Write both blocks
+    return (writeActiveBlockAtRBN(rbn, blockSize, headerSize, block) && 
+            writeActiveBlockAtRBN(block.succeedingRBN, blockSize, headerSize, succeedingBlock));
+}
