@@ -54,7 +54,8 @@ class BlockBuffer
          * @param block The ActiveBlock containing data to write
          * @return True if write was successful
          */
-        bool writeActiveBlockAtRBN(const uint32_t rbn, const uint32_t blockSize, const size_t headerSize, const ActiveBlock& block);
+        bool writeActiveBlockAtRBN(const uint32_t rbn, const uint32_t blockSize, 
+                                    const size_t headerSize, const ActiveBlock& block);
 
         /**
          * @brief Writes an available block to the rbn
@@ -71,7 +72,8 @@ class BlockBuffer
          * @param rbn The RBN of the record to remove
          * @return True if the record was found and removed successfully
          */
-        bool removeRecordAtRBN(const uint32_t rbn, const uint16_t minBlockSize, uint32_t& availListRBN, const uint32_t zipCode, const uint32_t blockSize, const size_t headerSize);
+        bool removeRecordAtRBN(const uint32_t rbn, const uint16_t minBlockSize, uint32_t& availListRBN, 
+                                const uint32_t zipCode, const uint32_t blockSize, const size_t headerSize);
 
         /**
          * @brief Attempts to add a ZipCodeRecord to the active blocks
@@ -79,7 +81,8 @@ class BlockBuffer
          * @param record The ZipCodeRecord to add
          * @return True if the record was added successfully
          */
-        bool addRecord(const uint32_t rbn, const uint32_t blockSize, uint32_t& availListRBN, const ZipCodeRecord& record, const size_t headerSize);
+        bool addRecord(const uint32_t rbn, const uint32_t blockSize, uint32_t& availListRBN, 
+                        const ZipCodeRecord& record, const size_t headerSize, uint32_t& blockCount);
 
         /**
          * @brief Checks if a merge occurred during the last add operation
@@ -163,14 +166,16 @@ class BlockBuffer
         std::fstream blockFile; // Input file stream
         std::string lastError; // Last Error Message
         bool errorState; // Has the Buffer encountered a critical error
-        bool mergeOccurred; // Tracks if a merge occurred during last add operation. Likely temporary
+        bool mergeOccurred; // Tracks if a merge occurred during last remove operation. Likely temporary
+        bool splitOccurred; // Tracks if a split occurred during last add operation.
         RecordBuffer recordBuffer; // RecordBuffer for packing/unpacking records
 
         /**
          * @brief Allocates a new block at the end of the file
          * @return RBN of the newly allocated block
          */
-        uint32_t allocateBlock(uint32_t& availListRBN); 
+        uint32_t allocateBlock(uint32_t& availListRBN, uint32_t& blockCount, 
+                                const uint32_t blockSize, const size_t headerSize);
 
         /**
          * @brief Try to merge two blocks
