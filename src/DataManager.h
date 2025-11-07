@@ -7,6 +7,7 @@
 #include <iosfwd>
 #include "ZipCodeRecord.h"
 #include "CSVBuffer.h"
+#include "BlockBuffer.h"
 #include "HeaderBuffer.h"
 #include "HeaderRecord.h"
 
@@ -45,6 +46,8 @@ public:
      * @throws std::runtime_error if file open fails or zero records loaded
      */
     std::size_t processFromLengthIndicated(const std::string& zcdPath);
+
+    std::size_t processFromBlockedSequence(const std::string& inFile);
 
     /**
      * @brief Print header + per-state rows to the provided stream.

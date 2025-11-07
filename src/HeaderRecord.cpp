@@ -130,6 +130,10 @@ std::vector<uint8_t> HeaderRecord::serialize() const
     // Record Count
     data.insert(data.end(), reinterpret_cast<const uint8_t*>(&recordCount),
                 reinterpret_cast<const uint8_t*>(&recordCount) + sizeof(recordCount));
+
+    // Block Count
+    data.insert(data.end(), reinterpret_cast<const uint8_t*>(&blockCount),
+                reinterpret_cast<const uint8_t*>(&blockCount) + sizeof(blockCount));
     
     // Field Count
     data.insert(data.end(), reinterpret_cast<const uint8_t*>(&fieldCount),
@@ -221,6 +225,10 @@ HeaderRecord HeaderRecord::deserialize(const uint8_t* data)
     memcpy(&header.recordCount, data + offset, sizeof(uint32_t));
     offset += sizeof(uint32_t);
 
+    // Read Block Count
+    memcpy(&header.blockCount, data + offset, sizeof(uint32_t));
+    offset += sizeof(uint32_t);
+
     // Read Field Count
     memcpy(&header.fieldCount, data + offset, sizeof(uint16_t));
     offset += sizeof(uint16_t);
@@ -248,6 +256,14 @@ HeaderRecord HeaderRecord::deserialize(const uint8_t* data)
 
     // Read Primary Key Field
     header.primaryKeyField = data[offset++];
+
+    // Read Avail List RBN
+    memcpy(&header.availableListRBN, data + offset, sizeof(uint32_t));
+    offset += sizeof(uint32_t);
+
+    // Read Sequence List RBN
+    memcpy(&header.sequenceSetListRBN, data + offset, sizeof(uint32_t));
+    offset += sizeof(uint32_t);
 
     // Read Has Valid Index File
     header.staleFlag = data[offset++];
@@ -299,6 +315,11 @@ const std::string& HeaderRecord::getIndexFileSchemaInfo() const
 uint32_t HeaderRecord::getRecordCount() const
 {
     return recordCount;
+}
+
+uint32_t HeaderRecord::getBlockCount() const
+{
+    return blockCount;
 }
 
 uint16_t HeaderRecord::getFieldCount() const
@@ -375,6 +396,11 @@ void HeaderRecord::setIndexFileSchemaInfo(const std::string& schemaInfo)
 void HeaderRecord::setRecordCount(uint32_t count)
 {
     this->recordCount = count;
+}
+
+void HeaderRecord::setRecordCount(uint32_t count)
+{
+    this->blockCount = count;
 }
 
 void HeaderRecord::setFieldCount(uint16_t count)

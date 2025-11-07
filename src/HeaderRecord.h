@@ -82,6 +82,8 @@ public:
      * @returns recordCount
      */
     uint32_t getRecordCount() const;
+
+    uint32_t getBlockCount() const;
     /**
      * @brief Field Count Getter
      * @returns fieldCount
@@ -169,6 +171,8 @@ public:
      * @param count new recordCount value
      */
     void setRecordCount(uint32_t count);
+
+    void setBlockCount(uint32_t count);
     /**
      * @brief Field Count Setter
      * @details sets fieldCount to count
@@ -243,7 +247,7 @@ private:
 
     uint32_t recordCount; // Total number of records
 
-    uint16_t blockCount; // Total number of blocks in the file
+    uint32_t blockCount; // Total number of blocks in the file
 
     uint16_t fieldCount; // Count of fields per record
 

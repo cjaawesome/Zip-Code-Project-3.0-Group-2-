@@ -177,3 +177,48 @@ bool DataManager::verifyIdenticalResults(const std::string& fileA,
         signatureFromLengthIndicated(fileB) : signatureFromCsv(fileB);
     return sigA == sigB;
 }
+
+std::size_t DataManager::processFromBlockedSequence(const std::string& inFile)
+{
+    stateExtremes_.clear();
+
+    HeaderBuffer headerBuffer;
+    HeaderRecord header;
+    if (!headerBuffer.readHeader(inFile, header)) 
+    {
+        throw std::runtime_error("Failed to read header");
+    }
+
+    BlockBuffer blockBuffer;
+    if (!blockBuffer.openFile(inFile, header.getHeaderSize())) 
+    {
+        throw std::runtime_error("Failed to open blocked file");
+    }
+
+    std::size_t processed = 0;
+
+    uint32_t currentRBN = header.getSequenceSetListRBN();
+
+     while (currentRBN != 0) 
+     {
+        ActiveBlock block = blockBuffer.loadActiveBlockAtRBN(currentRBN, header.getBlockSize(), header.getHeaderSize());
+        
+        // Unpack records from block
+        std::vector<ZipCodeRecord> records;
+        RecordBuffer recBuf;
+        recBuf.unpackBlock(block.data, records);
+        
+        // Process each record
+        for (const auto& rec : records) 
+        {
+            processRecord(rec);
+            ++processed;
+        }
+        
+        // Move to next block
+        currentRBN = block.succeedingRBN;
+    }
+    
+    blockBuffer.closeFile();
+    return processed;
+}

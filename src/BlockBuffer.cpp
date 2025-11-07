@@ -143,7 +143,6 @@ bool BlockBuffer::addRecord(const uint32_t rbn, const uint32_t blockSize, uint32
             recordBuffer.packBlock(records, block.data, blockSize);
             recordBuffer.packBlock(preceedingRecords, preceedingBlock.data, blockSize);
 
-
             // Original block does not need record change since one was removed and one was added
             preceedingBlock.recordCount = static_cast<uint16_t>(preceedingRecords.size()); // Update record count
 
@@ -224,12 +223,36 @@ bool BlockBuffer::getMergeOccurred() const{
     return mergeOccurred;
 }
 
-bool BlockBuffer::writeActiveBlockAtRBN(const uint32_t rbn, const uint32_t blockSize, const size_t headerSize, const ActiveBlock& block){
+bool BlockBuffer::writeActiveBlockAtRBN(const uint32_t rbn, const uint32_t blockSize, const size_t headerSize, const ActiveBlock& block)
+{
+    if(!blockFile.is_open())
+    {
+        setError("File not open");
+        return false;
+    }
 
-}
+    std::streampos offset = headerSize + static_cast<std::streampos>(rbn) * blockSize;
+    blockFile.seekg(offset);
 
-bool BlockBuffer::tryJoinBlocks(const uint32_t rbn, uint32_t& availListRBN){
-    
+    if(!blockFile.good())
+    {
+        setError("Failed to seek to RBN");
+        return false;
+    }
+
+    blockFile.write(reinterpret_cast<const char*>(&block.recordCount), sizeof(uint16_t));
+    blockFile.write(reinterpret_cast<const char*>(&block.precedingRBN), sizeof(uint32_t));
+    blockFile.write(reinterpret_cast<const char*>(&block.succeedingRBN), sizeof(uint32_t));
+
+    blockFile.write(block.data.data(), block.data.size());
+
+    size_t bytesWritten = block.getTotalSize();
+    if(bytesWritten < blockSize)
+    {
+        std::vector<char> padding(blockSize - bytesWritten, 0);
+        blockFile.write(padding.data(), padding.size());
+    }
+    return blockFile.good();
 }
 
 const std::string& BlockBuffer::getLastError() const{
@@ -240,32 +263,79 @@ size_t BlockBuffer::getMemoryOffset(){
     return blockFile.tellg();
 }
 
-void BlockBuffer::readNextActiveBlock(ActiveBlock& block){
-
-}
-
-void BlockBuffer::readNextAvailBlock(AvailBlock& block){
-
-}
-
 void BlockBuffer::closeFile(){
     blockFile.close(); // close the file
 }
 
-void BlockBuffer::dumpPhysicalOrder(std::ostream& out) const{
+void BlockBuffer::dumpPhysicalOrder(std::ostream& out, uint32_t sequenceSetHead,
+                                   uint32_t availHead, uint32_t blockCount,
+                                   uint32_t blockSize, size_t headerSize)
+{
+    out << "List Head: " << sequenceSetHead << "\n";
+    out << "Avail Head: " << availHead << "\n\n";
 
+    for (uint32_t rbn = 1; rbn <= blockCount; rbn++) 
+    {
+        ActiveBlock block = loadActiveBlockAtRBN(rbn, blockSize, headerSize);
+        std::vector<ZipCodeRecord> blockRecords;
+        recordBuffer.unpackBlock(block.data, blockRecords);
+        
+        // Match the assignment format more closely:
+        out << block.precedingRBN << " ";  // Preceding RBN
+        
+        // Print zip codes
+        for(const auto& rec : blockRecords)  // Note: & to avoid copy
+        {
+            out << rec.getZipCode() << " ";
+        }
+        
+        out << block.succeedingRBN << "\n";  // Succeeding RBN
+    }
 }
 
-void BlockBuffer::dumpLogicalOrder(std::ostream& out) const{
+void BlockBuffer::dumpLogicalOrder(std::ostream& out, uint32_t sequenceSetHead,
+                                  uint32_t availHead, uint32_t blockSize,
+                                  size_t headerSize)
+{
+    out << "List Head: " << sequenceSetHead << "\n";
+    out << "Avail Head: " << availHead << "\n\n";
 
+    // Active blocks
+    uint32_t currentRBN = sequenceSetHead;
+    while (currentRBN != 0) 
+    {
+        ActiveBlock block = loadActiveBlockAtRBN(currentRBN, blockSize, headerSize);
+        std::vector<ZipCodeRecord> blockRecords;
+        recordBuffer.unpackBlock(block.data, blockRecords);
+        
+        out << block.precedingRBN << " ";
+        for(const auto& rec : blockRecords)
+        {
+            out << rec.getZipCode() << " ";
+        }
+        out << block.succeedingRBN << "\n";
+        
+        currentRBN = block.succeedingRBN;
+    }
+
+    // Avail list
+    currentRBN = availHead;
+    while (currentRBN != 0)
+    {
+        AvailBlock availBlock = loadAvailBlockAtRBN(currentRBN, blockSize, headerSize);
+        out << " *available* " << availBlock.succeedingRBN << "\n";
+        currentRBN = availBlock.succeedingRBN;
+    }
 }
 
-uint32_t BlockBuffer::getRecordsProcessed() const{
-
+uint32_t BlockBuffer::getRecordsProcessed() const
+{
+    return recordsProcessed;
 }
 
-uint32_t BlockBuffer::getBlocksProcessed() const{
-
+uint32_t BlockBuffer::getBlocksProcessed() const
+{
+    return blocksProcessed;
 }
 
 void BlockBuffer::setError(const std::string& message){

@@ -103,19 +103,6 @@ class BlockBuffer
         size_t getMemoryOffset();
 
         /**
-         * @brief Read next block from file
-         * @param block [OUT] ActiveBlock to populate
-         */
-        void readNextActiveBlock(ActiveBlock& block);
-
-        /**
-         * @brief Read next available block from file
-         * @details Populates a Block structure with data from the file
-         * @param block [OUT] AvailBlock to populate
-         */
-        void readNextAvailBlock(AvailBlock& block);
-
-        /**
          * @brief Close the currently opened file
          */
         void closeFile();
@@ -124,13 +111,17 @@ class BlockBuffer
          * @brief Dumps the physical order of blocks in the file to standard output
          * @param out [IN] Output stream to write to
          */
-        void dumpPhysicalOrder(std::ostream& out) const;
+       void dumpPhysicalOrder(std::ostream& out, uint32_t sequenceSetHead,
+                                   uint32_t availHead, uint32_t blockCount,
+                                   uint32_t blockSize, size_t headerSize);
 
         /**
          * @brief Dumps the logical order of active blocks in the file to standard output
          * @param out [IN] Output stream to write to
          */
-        void dumpLogicalOrder(std::ostream& out) const;
+        void dumpLogicalOrder(std::ostream& out, uint32_t sequenceSetHead,
+                                  uint32_t availHead, uint32_t blockSize,
+                                  size_t headerSize);
 
         /**
          * @brief Get number of records processed
@@ -178,14 +169,6 @@ class BlockBuffer
                                 const uint32_t blockSize, const size_t headerSize);
 
         /**
-         * @brief Try to merge two blocks
-         * @param rbn RBN of the block to be merged
-         * @param availListRBN RBN of the avail block for merging
-         * @return True if merge was successful
-         */
-        bool tryJoinBlocks(const uint32_t rbn, uint32_t& availListRBN);
-
-        /**
          * @brief Frees a block at the specified RBN
          * @details Push to available list
          */
@@ -203,11 +186,11 @@ class BlockBuffer
                            const uint32_t blockSize, const uint16_t minBlockSize,
                            const size_t headerSize, const uint32_t rbn);
 
-    bool tryBorrowFromSucceeding(ActiveBlock& block, ActiveBlock& succeedingBlock,
-                                std::vector<ZipCodeRecord>& records,
-                                std::vector<ZipCodeRecord>& succeedingRecords,
-                                const uint32_t blockSize, const uint16_t minBlockSize,
-                                const size_t headerSize, const uint32_t rbn);
+        bool tryBorrowFromSucceeding(ActiveBlock& block, ActiveBlock& succeedingBlock,
+                                    std::vector<ZipCodeRecord>& records,
+                                    std::vector<ZipCodeRecord>& succeedingRecords,
+                                    const uint32_t blockSize, const uint16_t minBlockSize,
+                                    const size_t headerSize, const uint32_t rbn);
 };
 
 #endif // BlockBuffer
