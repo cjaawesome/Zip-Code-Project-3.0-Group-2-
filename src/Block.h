@@ -10,7 +10,7 @@ struct ActiveBlock
     uint32_t precedingRBN; // Pointer to prior active block
     uint32_t succeedingRBN; // Pointer to succeeding active block
     std::vector<char> data; // Raw Block Data
-    size_t ActiveBlock::getTotalSize() const 
+    size_t getTotalSize() const 
     {
         return 10 + data.size();  // Metadata + data
     }

@@ -3,6 +3,7 @@
 
 #include "HeaderRecord.h"
 #include <string>
+#include <cstring>
 
 /**
  * @file HeaderBuffer.h

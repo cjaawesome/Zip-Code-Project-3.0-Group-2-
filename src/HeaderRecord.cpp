@@ -1,5 +1,6 @@
 #include "HeaderRecord.h"
 
+
 HeaderRecord::HeaderRecord()
 {
 }
@@ -398,10 +399,10 @@ void HeaderRecord::setRecordCount(uint32_t count)
     this->recordCount = count;
 }
 
-void HeaderRecord::setRecordCount(uint32_t count)
-{
-    this->blockCount = count;
-}
+// void HeaderRecord::setRecordCount(uint32_t count)
+// {
+//     this->blockCount = count;
+// }
 
 void HeaderRecord::setFieldCount(uint16_t count)
 {

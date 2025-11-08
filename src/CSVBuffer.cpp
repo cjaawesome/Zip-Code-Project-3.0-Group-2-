@@ -7,6 +7,7 @@
  */
 
 #include "CSVBuffer.h"
+#include "ZipCodeRecord.h"
 #include <iostream>
 #include <sstream>
 #include <algorithm>

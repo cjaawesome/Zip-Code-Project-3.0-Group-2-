@@ -7,6 +7,7 @@
 #include <fstream>
 #include <algorithm>
 #include "RecordBuffer.h"
+#include "ZipCodeRecord.h"
 
 class BlockBuffer
 {

@@ -1,6 +1,8 @@
 #include "HeaderBuffer.h"
+#include "HeaderRecord.h"
 #include <fstream>
 #include <vector>
+#include <cstring>
 
 HeaderBuffer::HeaderBuffer() : errorState(false), lastError("") {}
 

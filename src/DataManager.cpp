@@ -1,5 +1,6 @@
 // DataManager.cpp
 #include "DataManager.h"
+#include "ZipCodeRecord.h"
 #include <sstream>
 #include <map>
 #include <iostream>

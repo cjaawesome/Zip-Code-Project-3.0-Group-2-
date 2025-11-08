@@ -2,6 +2,7 @@
 #define PRIMARY_KEY_INDEX
 
 #include "CSVBuffer.h"
+#include "ZipCodeRecord.h"
 #include <iostream>
 #include <map>
 #include <fstream>

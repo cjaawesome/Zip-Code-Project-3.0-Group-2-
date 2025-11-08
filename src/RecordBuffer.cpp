@@ -1,4 +1,16 @@
 #include "RecordBuffer.h"
+#include "ZipCodeRecord.h"
+#include <cstring>
+
+
+RecordBuffer::RecordBuffer(){
+    // :)
+}
+
+
+RecordBuffer::~RecordBuffer(){
+
+}
 
 bool RecordBuffer::unpackBlock(const std::vector<char>& blockData, std::vector<ZipCodeRecord>& records)
 {

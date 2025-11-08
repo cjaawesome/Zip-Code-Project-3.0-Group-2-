@@ -1,5 +1,18 @@
 #include "BlockBuffer.h"
 #include "RecordBuffer.h"
+#include "ZipCodeRecord.h"
+
+// Simple constructor / destructor to initialize state
+BlockBuffer::BlockBuffer()
+    : recordsProcessed(0), blocksProcessed(0), lastError(), errorState(false),
+      mergeOccurred(false), splitOccurred(false), recordBuffer()
+{
+}
+
+BlockBuffer::~BlockBuffer()
+{
+    if (blockFile.is_open()) blockFile.close();
+}
 
 bool BlockBuffer::openFile(const std::string& filename, const size_t headerSize){
     blockFile.open(filename, std::ios::binary | std::ios::in | std::ios::out);
