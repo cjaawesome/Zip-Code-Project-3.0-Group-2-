@@ -6,93 +6,170 @@
 #include <cstring>
 
 #include "../src/BlockBuffer.h"
+#include "../src/BlockIndexFile.h"
 #include "../src/Block.h"
+#include "../src/HeaderBuffer.h"
+#include "../src/HeaderRecord.h"
+#include "../src/ZipCodeRecord.h"
+#include "../src/CSVBuffer.h"
+
+const std::string FILE_PATH_IN = "PT2_Randomized.csv";
+const std::string FILE_PATH_OUT = "PT2_Randomized.zcd";
+const std::string& FILE_PATH_INDEX = "PT2_Randomized.idx";
+
+//from ZCDUtility.cpp
+bool convertCSVToBlockedSequenceSet(const std::string& csvFile, const std::string& zcbFile, const std::string& indexFile, 
+                                    uint32_t blockSize = 1024, uint16_t minBlockSize = 256)
+{
+    CSVBuffer csvBuffer;
+    if(!csvBuffer.openFile(csvFile))
+    {
+        std::cerr << "Failed to open CSV file." << std::endl;
+        return false;
+    }
+
+    std::vector<ZipCodeRecord> allRecords;
+    ZipCodeRecord record;
+    while(csvBuffer.getNextRecord(record))
+    {
+        allRecords.push_back(record);
+    }
+
+    std::cout << "Read " << allRecords.size() << " records." << std::endl;
+
+    std::sort(allRecords.begin(), allRecords.end(),
+                [](const ZipCodeRecord& a, const ZipCodeRecord& b)
+            {
+                return a.getZipCode() < b.getZipCode();
+            });
+
+    std:: cout << "Sorted records by ZipCode." << std::endl;
+
+    HeaderRecord header;
+
+    header.setFileStructureType("ZIPC");
+    header.setVersion(2);
+    header.setHeaderSize(0); // Set In Serialization Process
+    header.setSizeFormatType(0);
+    header.setBlockSize(blockSize);
+    header.setMinBlockSize(minBlockSize);
+    header.setIndexFileName("zipcode_data.idx"); // Placeholder
+    header.setIndexFileSchemaInfo("Primary Key: Zipcode"); // Placeholder
+    header.setRecordCount(allRecords.size()); // This will need to be tracked and updated after if sorting changes
+    header.setBlockCount(0); // Update After Conversion
+    
+    std::vector<FieldDef> fields;
+    fields.push_back({"zipcode", 1});
+    fields.push_back({"location", 3});
+    fields.push_back({"state", 4});
+    fields.push_back({"county", 3});
+    fields.push_back({"latitude", 2});
+    fields.push_back({"longitude", 2});
+    
+    header.setFields(fields);
+    header.setFieldCount(csvBuffer.EXPECTED_FIELD_COUNT);
+    header.setPrimaryKeyField(0);
+    header.setAvailableListRBN(0); 
+    header.setSequenceSetListRBN(1); 
+    header.setStaleFlag(0);
+
+    std::ofstream out(zcbFile, std::ios::binary);
+    if (!out.is_open()) 
+    {
+        std::cerr << "Error: Cannot create output file: " << zcbFile << std::endl;
+        return false;
+    }
+    
+    auto headerData = header.serialize();
+    header.setHeaderSize(headerData.size());
+    
+    out.write(reinterpret_cast<char*>(headerData.data()), headerData.size());
+    
+    size_t blockCountOffset = 4 + 2 + 4 + 1 + 4 + 2 + 2 + 
+                         header.getIndexFileName().length() + 
+                         2 + header.getIndexFileSchemaInfo().length() + 
+                         sizeof(uint32_t);
+    
+    std::cout << "Converting " << csvFile << " to " << zcbFile << "..." << std::endl;
+
+    RecordBuffer recordBuffer;
+    BlockBuffer blockBuffer;
+    BlockIndexFile blockIndexFile;
+
+    if(!blockBuffer.openFile(zcbFile, header.getHeaderSize()))
+    {
+        std::cerr << "Failed to open block buffer." << std::endl;    
+    }
+
+    uint32_t currentRBN = 1;
+    uint32_t blockCount = 0;
+    std::vector<ZipCodeRecord> currentBlockRecords;
+    size_t currentSize = 10;  // metadata
+    
+
+    for(const auto& rec : allRecords)
+    {
+        // Check if adding this record would overflow
+        if (currentSize + rec.getRecordSize() + 4 > blockSize)
+        {
+            // Write current block
+            ActiveBlock block;
+            IndexEntry entry;
+            block.precedingRBN = (currentRBN == 1) ? 0 : currentRBN - 1;
+            block.succeedingRBN = currentRBN + 1;  // Temp - will fix last block later
+            block.recordCount = static_cast<uint16_t>(currentBlockRecords.size());
+            
+            recordBuffer.packBlock(currentBlockRecords, block.data, blockSize);
+            blockBuffer.writeActiveBlockAtRBN(currentRBN, blockSize, header.getHeaderSize(), block);
+
+            entry.key = currentBlockRecords.front().getZipCode();
+            entry.recordRBN = currentRBN;
+            entry.previousRBN = block.precedingRBN;
+            entry.nextRBN = block.succeedingRBN;
+            
+            blockIndexFile.addIndexEntry(entry);
+
+            ++blockCount;
+            ++currentRBN;
+            currentBlockRecords.clear();
+            currentSize = 10;  // Reset to metadata size
+        }
+
+        //write index file
+        blockIndexFile.write(indexFile);
+
+        // Add record to current block
+        currentBlockRecords.push_back(rec);
+        currentSize += rec.getRecordSize() + 4;
+    }
+
+    // Write final block
+    if (!currentBlockRecords.empty())
+    {
+        ActiveBlock block;
+        block.precedingRBN = (currentRBN == 1) ? 0 : currentRBN - 1;
+        block.succeedingRBN = 0;  // Last block
+        block.recordCount = static_cast<uint16_t>(currentBlockRecords.size());
+        
+        recordBuffer.packBlock(currentBlockRecords, block.data, blockSize);
+        blockBuffer.writeActiveBlockAtRBN(currentRBN, blockSize, header.getHeaderSize(), block);
+        
+        ++blockCount;
+    }
+
+    out.seekp(blockCountOffset);
+    out.write(reinterpret_cast<char*>(&blockCount), sizeof(uint32_t));
+
+    // Once index are setup creating the index and setting the stale flag will go here.
+
+    csvBuffer.closeFile();
+    blockBuffer.closeFile();
+
+    return true;
+}
 
 int main()
 {
-    const std::string filename = "test_blocks.zcd";
-    const size_t headerSize = 128;
-    const uint32_t blockSize = 512;
-    const uint32_t blockCount = 2; // we'll create RBN 1..2
-
-    // Create a small test block file with a header and two active blocks
-    {
-        std::ofstream out(filename, std::ios::binary | std::ios::trunc);
-        if (!out.is_open()) {
-            std::cerr << "Failed to create test file\n";
-            return 1;
-        }
-
-        // Write header (just zeros)
-        std::vector<char> header(headerSize, 0);
-        out.write(header.data(), static_cast<std::streamsize>(header.size()));
-
-        // Write an empty block for RBN 0 (placeholder)
-        std::vector<char> emptyBlock(blockSize, 0);
-        out.write(emptyBlock.data(), static_cast<std::streamsize>(emptyBlock.size()));
-
-        // Helper to write an active block for a given rbn
-        auto writeActive = [&](uint16_t recCount, uint32_t preceding, uint32_t succeeding, const std::string& payload){
-            std::vector<char> block(blockSize, 0);
-            size_t off = 0;
-            // recordCount
-            memcpy(block.data() + off, &recCount, sizeof(recCount)); off += sizeof(recCount);
-            // precedingRBN
-            memcpy(block.data() + off, &preceding, sizeof(preceding)); off += sizeof(preceding);
-            // succeedingRBN
-            memcpy(block.data() + off, &succeeding, sizeof(succeeding)); off += sizeof(succeeding);
-            // payload
-            size_t pLen = std::min(payload.size(), blockSize - off);
-            memcpy(block.data() + off, payload.data(), pLen);
-
-            out.write(block.data(), static_cast<std::streamsize>(block.size()));
-        };
-
-        // Write RBN 1
-        writeActive(1, 0, 2, "PAYLOAD_BLOCK_1");
-        // Write RBN 2
-        writeActive(1, 1, 0, "PAYLOAD_BLOCK_2");
-
-        out.close();
-        std::cout << "Wrote test file: " << filename << "\n";
-    }
-
-    // Now open the file with BlockBuffer and read blocks
-    BlockBuffer buffer;
-    if (!buffer.openFile(filename, headerSize)) {
-        std::cerr << "BlockBuffer failed to open file: " << buffer.getLastError() << "\n";
-        return 1;
-    }
-
-    // Read and dump block 1 and 2
-    for (uint32_t rbn = 1; rbn <= blockCount; ++rbn)
-    {
-        ActiveBlock block = buffer.loadActiveBlockAtRBN(rbn, blockSize, headerSize);
-        std::cout << "RBN " << rbn << ": recordCount=" << block.recordCount
-                  << " preceding=" << block.precedingRBN
-                  << " succeeding=" << block.succeedingRBN << "\n";
-        if (!block.data.empty()) {
-            // print first bytes of payload as string up to a null or 64 chars
-            size_t len = block.data.size();
-            size_t maxPrint = std::min<size_t>(len, 64);
-            std::string payload(block.data.begin(), block.data.begin() + maxPrint);
-            // Trim trailing zeros for nicer output
-            size_t firstZero = payload.find('\0');
-            if (firstZero != std::string::npos) payload.resize(firstZero);
-            std::cout << "  payload: '" << payload << "' (" << len << " bytes stored)\n";
-        } else {
-            std::cout << "  payload: <empty>\n";
-        }
-    }
-
-    // Try dumpPhysicalOrder if available
-    try {
-        buffer.dumpPhysicalOrder(std::cout, 1, 0, blockCount, blockSize, headerSize);
-    } catch (...) {
-        std::cerr << "dumpPhysicalOrder threw an exception or is not implemented\n";
-    }
-
-    buffer.closeFile();
-    std::cout << "Test finished.\n";
+    
     return 0;
 }

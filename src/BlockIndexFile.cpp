@@ -35,9 +35,12 @@ bool BlockIndexFile::write(const std::string& filename){
 
     for(const auto& index : indexEntries){ //format { key recordRBN }
         file << "{ " << index.key << " ";
-        file << index.recordRBN << " }" << " ";
-    }
+        file << index.recordRBN << " ";
+        file << index.previousRBN << " ";
+        file << index.nextRBN << " } ";
+    }   
     file << ENDOFFILE;
+    file.close();
 
     return true;
 }
@@ -56,12 +59,17 @@ bool BlockIndexFile::read(const std::string& filename){
         index.key = std::stoi(current);
         file >> current; //read in recordRBN
         index.recordRBN = std::stoi(current);
+        file >> current; //read in previousRBN
+        index.previousRBN = std::stoi(current);
+        file >> current; //read in nextRBN
+        index.nextRBN = std::stoi(current);
 
         indexEntries.push_back(index); //add new index to list
 
         file >> current; //read in "}"
         file >> current; //read in next "{" or EOF marker
     }
+    file.close();
 
     return true;
 }
