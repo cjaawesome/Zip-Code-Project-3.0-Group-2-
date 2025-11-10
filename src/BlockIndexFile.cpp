@@ -28,7 +28,8 @@ void BlockIndexFile::addIndexEntry(const IndexEntry& entry){
 
 
 bool BlockIndexFile::write(const std::string& filename){
-    std::ofstream file(filename);
+    std::ofstream file;
+    file.open(filename, std::ios::out);
     if(!file){
         return false;
     }
@@ -46,7 +47,8 @@ bool BlockIndexFile::write(const std::string& filename){
 }
 
 bool BlockIndexFile::read(const std::string& filename){
-    std::ifstream file(filename);
+    std::ifstream file;
+    file.open(filename, std::ios::in);
     indexEntries.clear(); //clear list
     if(!file){
         return false;

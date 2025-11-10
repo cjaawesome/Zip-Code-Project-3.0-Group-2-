@@ -399,6 +399,11 @@ void HeaderRecord::setRecordCount(uint32_t count)
     this->recordCount = count;
 }
 
+void HeaderRecord::setBlockCount(uint32_t count)
+{
+    this->blockCount = count;
+}
+
 // void HeaderRecord::setRecordCount(uint32_t count)
 // {
 //     this->blockCount = count;

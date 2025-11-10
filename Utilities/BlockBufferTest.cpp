@@ -170,6 +170,6 @@ bool convertCSVToBlockedSequenceSet(const std::string& csvFile, const std::strin
 
 int main()
 {
-    
+    convertCSVToBlockedSequenceSet(FILE_PATH_IN, FILE_PATH_OUT, FILE_PATH_INDEX);
     return 0;
 }
