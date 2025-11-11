@@ -1,13 +1,13 @@
 #ifndef ZIP_SEARCH_APP
 #define ZIP_SEARCH_APP
 
-#include "PrimaryKeyIndex.h"
-#include "BlockIndexFile.h"
+#include "../src/PrimaryKeyIndex.h"
+#include "../src/BlockIndexFile.h"
 
-#include "CSVBuffer.h"
-#include "ZipCodeRecord.h"
-#include "BlockBuffer.h"
-#include "Block.h"
+#include "../src/CSVBuffer.h"
+#include "../src/ZipCodeRecord.h"
+#include "../src/BlockBuffer.h"
+#include "../src/Block.h"
 #include <iostream>
 #include <fstream>
 #include <string>

@@ -228,6 +228,10 @@ public:
      */
     void setSequenceSetListRBN(uint32_t rbn);
 
+    uint8_t recordSizeIntBytes = 4;   // number of bytes used for each record length indicator
+    enum class SizeFormat : uint8_t { ASCII = 0, Binary = 1 };
+    SizeFormat sizeFormat = SizeFormat::Binary;  // how numeric sizes are stored
+
 private:
     char fileStructureType[4]; // "ZIPC"
 

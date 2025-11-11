@@ -6,6 +6,7 @@
 #include <string>
 #include <cstring>
 #include <vector>
+#include <algorithm>
 
 /**
  * @file PrimaryKeyIndex.cpp
@@ -199,4 +200,30 @@ int PrimaryKeyIndex::addPrimary(SecondaryIndexEntry& sEntry, const PrimaryIndexE
     primaryEntries.push_back(pEntry);
     primaryEntries[index].nextIndex = size;
     return size;
+}
+bool PrimaryKeyIndex::updateHighestForBlock(uint32_t rbn, uint32_t newHighest){
+    for (auto& e : primaryEntries){
+        if (e.rbn == static_cast<int32_t>(rbn)){
+            e.zip = newHighest;
+            std::sort(primaryEntries.begin(), primaryEntries.end(),
+                      [](auto&a, auto&b){ return a.zip < b.zip; });
+            return true;
+        }
+    }
+    return false;
+}
+
+bool PrimaryKeyIndex::addBlockEntry(uint32_t rbn, uint32_t highest){
+    primaryEntries.push_back({highest, static_cast<int32_t>(rbn)});
+    std::sort(primaryEntries.begin(), primaryEntries.end(),
+              [](auto&a, auto&b){ return a.zip < b.zip; });
+    return true;
+}
+
+bool PrimaryKeyIndex::removeBlock(uint32_t rbn){
+    auto it = std::remove_if(primaryEntries.begin(), primaryEntries.end(),
+                             [&](auto& e){ return e.rbn == static_cast<int32_t>(rbn); });
+    if (it == primaryEntries.end()) return false;
+    primaryEntries.erase(it, primaryEntries.end());
+    return true;
 }

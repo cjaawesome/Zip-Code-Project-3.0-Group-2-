@@ -104,6 +104,15 @@ std::vector<uint8_t> HeaderRecord::serialize() const
     // Size format type
     data.push_back(sizeFormatType);
 
+    // Record size int bytes
+    data.insert(data.end(), reinterpret_cast<const uint8_t*>(&recordSizeIntBytes),
+            reinterpret_cast<const uint8_t*>(&recordSizeIntBytes) + sizeof(recordSizeIntBytes));
+
+    // Size format enum (store as a single byte)
+    uint8_t sf = static_cast<uint8_t>(sizeFormat);
+    data.insert(data.end(), reinterpret_cast<const uint8_t*>(&sf),
+            reinterpret_cast<const uint8_t*>(&sf) + sizeof(sf));
+
     // Block Size
     data.insert(data.end(), reinterpret_cast<const uint8_t*>(&blockSize),
                 reinterpret_cast<const uint8_t*>(&blockSize) + sizeof(blockSize));
@@ -195,6 +204,17 @@ HeaderRecord HeaderRecord::deserialize(const uint8_t* data)
 
     // Read Size Format Type
     header.sizeFormatType = data[offset++];
+
+    // Record size int bytes
+    memcpy(&header.recordSizeIntBytes, data + offset, sizeof(uint8_t));
+    offset += sizeof(uint8_t);
+
+    // Size format enum
+    uint8_t sf;
+    memcpy(&sf, data + offset, sizeof(uint8_t));
+    header.sizeFormat = static_cast<HeaderRecord::SizeFormat>(sf);
+    offset += sizeof(uint8_t);
+
 
     // Read Block Size
     memcpy(&header.blockSize, data + offset, sizeof(uint32_t));

@@ -35,6 +35,8 @@ public:
     struct PrimaryIndexEntry {
         size_t offset; //memory offset
         int nextIndex; // next index in array
+        int32_t rbn; // Added rbn member
+    uint32_t zip; // Added zip member needed by updateHighestForBlock
     };
     /**
      * @brief reads data from a cvsbuffer and creates a primary index for it
@@ -63,6 +65,11 @@ public:
      * @return returns true if in the map
      */
     bool contains(const uint32_t zip) const;
+
+    bool updateHighestForBlock(uint32_t rbn, uint32_t newHighestZip);
+    bool addBlockEntry(uint32_t rbn, uint32_t highestZip);
+    bool removeBlock(uint32_t rbn);
+
     
 private:
     std::vector<SecondaryIndexEntry> secondaryEntries; //secondary keys
