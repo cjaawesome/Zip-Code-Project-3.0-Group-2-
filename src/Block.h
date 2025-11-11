@@ -21,6 +21,10 @@ struct AvailBlock
     uint16_t recordCount; // Records held by this block
     uint32_t succeedingRBN; // Pointer to succeeding active block
     std::vector<char> padding; // Padding to fill block size
+    size_t getTotalSize() const 
+    {
+        return 6 + padding.size();  // Metadata + data
+    }
 };
 
 #endif
