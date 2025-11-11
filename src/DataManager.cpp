@@ -167,15 +167,68 @@ std::string DataManager::signatureFromLengthIndicated(const std::string& zcdPath
     return mgr.signature();
 }
 
+std::string DataManager::signatureFromBlockedSequence(const std::string& zcbPath)
+{
+    DataManager mgr;
+    mgr.processFromBlockedSequence(zcbPath);
+    return mgr.signature();
+}
+
 bool DataManager::verifyIdenticalResults(const std::string& fileA,
                                          const std::string& fileB,
-                                         bool fileAIsLengthIndicated,
-                                         bool fileBIsLengthIndicated) 
+                                         const uint8_t fileAType,
+                                            const uint8_t fileBType) 
 {
-    std::string sigA = fileAIsLengthIndicated ? 
-        signatureFromLengthIndicated(fileA) : signatureFromCsv(fileA);
-    std::string sigB = fileBIsLengthIndicated ? 
-        signatureFromLengthIndicated(fileB) : signatureFromCsv(fileB);
+    std::string sigA;
+    std::string sigB;
+    switch (fileAType)
+    {
+        case 0:
+        {
+             sigA = signatureFromCsv(fileA);
+             break;
+        }
+        case 1:
+        {
+            sigA = signatureFromLengthIndicated(fileA);
+            break;
+        }
+        case 2:
+        {
+             sigA = signatureFromBlockedSequence(fileA);
+             break;
+        }
+        default:
+        {
+            std::cerr << "Not a recognized signature." << std::endl;
+            return false;
+        }
+    }
+
+    switch (fileBType)
+    {
+        case 0:
+        {
+             sigB = signatureFromCsv(fileB);
+             break;
+        }
+        case 1:
+        {
+            sigB = signatureFromLengthIndicated(fileB);
+            break;
+        }
+        case 2:
+        {
+             sigB = signatureFromBlockedSequence(fileB);
+             break;
+        }
+        default:
+        {
+            std::cerr << "Not a recognized signature." << std::endl;
+            return false;
+        }
+
+    }
     return sigA == sigB;
 }
 
@@ -187,6 +240,7 @@ std::size_t DataManager::processFromBlockedSequence(const std::string& inFile)
     HeaderRecord header;
     if (!headerBuffer.readHeader(inFile, header)) 
     {
+        std::cout<< headerBuffer.getLastError() << std::endl;
         throw std::runtime_error("Failed to read header");
     }
 

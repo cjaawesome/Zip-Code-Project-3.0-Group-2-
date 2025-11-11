@@ -5,26 +5,40 @@
 #include "../src/ZipCodeRecord.h"
 #include "../src/PrimaryKeyIndex.h"
 #include "../src/BlockBuffer.h"
+#include "../src/DataManager.h"
 #include <iostream>
 #include <fstream>
 #include <string>
 #include <cstring>
 #include <algorithm>
 
-void printUsage(const char* programName) 
+void printUsage(const char* programName)
 {
     std::cout << "Usage:\n"
               << "  Convert CSV to ZCD:\n"
               << "    " << programName << " convert <input.csv> <output.zcd>\n\n"
+              << "  Convert CSV to Blocked Sequence Set:\n"
+              << "    " << programName << " convert-blocked <input.csv> <output.zcb> [blockSize] [minBlockSize]\n"
+              << "    blockSize: block size in bytes (default: 1024)\n"
+              << "    minBlockSize: minimum block size (default: 256)\n\n"
               << "  Read ZCD file:\n"
               << "    " << programName << " read <input.zcd> [count]\n"
               << "    count: number of records to display (default: 5)\n\n"
               << "  Display ZCD header:\n"
               << "    " << programName << " header <input.zcd>\n\n"
+              << "  Verify CSV vs ZCD using DataManager (identicality test):\n"
+              << "    " << programName << " verify <input.csv> <input.zcd>\n\n"
+              << "  Search using index (no full scan):\n"
+              << "    " << programName << " zcd-search <input.zcd> <zipcode_data.idx> <zip> [<zip> ...]\n\n"
               << "Examples:\n"
               << "  " << programName << " convert PT2_CSV.csv output.zcd\n"
+              << "  " << programName << " convert-blocked PT2_CSV.csv output.zcb\n"
+              << "  " << programName << " convert-blocked PT2_CSV.csv output.zcb 2048 512\n"
               << "  " << programName << " read output.zcd 10\n"
-              << "  " << programName << " header output.zcd\n";
+              << "  " << programName << " header output.zcd\n"
+              << "  " << programName << " verify PT2_CSV.csv output.zcd\n"
+              << "  " << programName << " zcd-search output.zcd zipcode_data.idx 55455 30301\n";
+
 }
 
 bool convertCSVtoZCD(const std::string& inFile, const std::string& outFile) 
@@ -350,6 +364,21 @@ bool displayHeader(const std::string& inFile)
     
     return true;
 }
+static bool readLengthIndicatedRecordAt(const std::string& zcdPath,
+                                        uint64_t absOffset,
+                                        std::string& out)
+{
+    std::ifstream in(zcdPath, std::ios::binary);
+    if (!in) return false;
+
+    in.seekg(static_cast<std::streamoff>(absOffset), std::ios::beg);
+
+    uint32_t len = 0;
+    if (!in.read(reinterpret_cast<char*>(&len), 4)) return false;
+
+    out.resize(len);
+    return static_cast<bool>(in.read(out.data(), len));
+}
 
 int main(int argc, char* argv[]) 
 {
@@ -360,7 +389,7 @@ int main(int argc, char* argv[])
     
     std::string command = argv[1];
     
-    if (command == "convert") 
+    if (command == "convert")
     {
         if (argc != 4) {
             std::cerr << "Error: convert requires input and output filenames\n";
@@ -368,6 +397,17 @@ int main(int argc, char* argv[])
             return 1;
         }
         return convertCSVtoZCD(argv[2], argv[3]) ? 0 : 1;
+    }
+    else if (command == "convert-blocked")
+    {
+        if (argc < 4) {
+            std::cerr << "Error: convert-blocked requires input and output filenames\n";
+            printUsage(argv[0]);
+            return 1;
+        }
+        uint32_t blockSize = (argc >= 5) ? std::atoi(argv[4]) : 1024;
+        uint16_t minBlockSize = (argc >= 6) ? std::atoi(argv[5]) : 256;
+        return convertCSVToBlockedSequenceSet(argv[2], argv[3], blockSize, minBlockSize) ? 0 : 1;
     }
     else if (command == "read") 
     {
@@ -388,6 +428,65 @@ int main(int argc, char* argv[])
         }
         return displayHeader(argv[2]) ? 0 : 1;
     }
+    else if (command == "verify") 
+    {
+    if (argc != 4) {
+        printUsage(argv[0]);
+        return 1;
+    }
+    // CSV is NOT length-indicated; ZCD IS length-indicated
+    bool ok = DataManager::verifyIdenticalResults(
+                  argv[2],              // CSV path
+                  argv[3],              // ZCD path
+                  /*fileAIsLengthIndicated=*/false,
+                  /*fileBIsLengthIndicated=*/true
+              );
+    std::cout << (ok ? "IDENTICAL\n" : "DIFFER\n");
+    return ok ? 0 : 2;
+    }
+    else if (command == "zcd-search") {
+    if (argc < 5) { printUsage(argv[0]); return 1; }
+
+    std::string zcdPath = argv[2];
+    std::string idxPath = argv[3];
+
+    // sanity-check header
+    HeaderRecord hdr; HeaderBuffer hb;
+    if (!hb.readHeader(zcdPath, hdr)) {
+        std::cerr << "Failed to read header for " << zcdPath << "\n";
+        return 1;
+    }
+
+    // Load index
+    PrimaryKeyIndex idx;
+    if (!idx.read(idxPath)) {
+        std::cerr << "Failed to load index " << idxPath << "\n";
+        return 1;
+    }
+
+    // Handle one or more ZIPs on the command line
+    for (int i = 4; i < argc; ++i) {
+        uint32_t zip = static_cast<uint32_t>(std::stoul(argv[i]));
+        auto offsets = idx.find(zip);
+
+        if (offsets.empty()) {
+            std::cout << zip << ": NOT FOUND\n";
+            continue;
+        }
+
+        for (size_t off : offsets) {
+            std::string rec;
+            if (!readLengthIndicatedRecordAt(zcdPath, static_cast<uint64_t>(off), rec)) {
+                std::cout << zip << ": BAD OFFSET " << off << "\n";
+                continue;
+            }
+            // rec is "zip,location,state,county,lat,lon"
+            std::cout << zip << ": " << rec << "\n";
+        }
+    }
+    return 0;
+    }
+
     else 
     {
         std::cerr << "Error: Unknown command '" << command << "'\n";

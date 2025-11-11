@@ -62,10 +62,13 @@ class BlockBuffer
          * @brief Writes an available block to the rbn
          * @details Writes the provided block data to the specifed RBN in the file
          * @param rbn The RBN of the block to write to
+         * @param blockSize The size of blocks in the file
+         * @param headerSize The size of the file header
          * @param block The AvailBlock containing the data to write
          * @return True if write was succesful
          */
-        bool writeAvailBlockAtRBN(const uint32_t rbn, const AvailBlock& block);
+        bool writeAvailBlockAtRBN(const uint32_t rbn, const uint32_t blockSize,
+                                   const size_t headerSize, const AvailBlock& block);
 
         /**
          * @brief Attempts to remove a ZipCodeRecord from a block at a specific RBN
@@ -172,8 +175,13 @@ class BlockBuffer
         /**
          * @brief Frees a block at the specified RBN
          * @details Push to available list
+         * @param rbn The RBN of the block to free
+         * @param availListRBN Reference to the avail list head RBN
+         * @param blockSize The size of blocks in the file
+         * @param headerSize The size of the file header
          */
-        void freeBlock(const uint32_t rbn, uint32_t& availListRBN);
+        void freeBlock(const uint32_t rbn, uint32_t& availListRBN,
+                       const uint32_t blockSize, const size_t headerSize);
 
         /**
          * @brief Set error state with message

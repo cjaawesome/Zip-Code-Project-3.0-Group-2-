@@ -17,6 +17,7 @@ bool HeaderBuffer::readHeader(const std::string& filename, HeaderRecord& header)
     if (!file.is_open())
     {
         setError("Cannot open file: " + filename);
+        std::cerr << getLastError() << std::endl;
         return false;
     }
 
@@ -28,6 +29,7 @@ bool HeaderBuffer::readHeader(const std::string& filename, HeaderRecord& header)
     if (file.gcount() < MIN_HEADER_READ) 
     {
         setError("File too small to contain a valid header");
+        std::cerr << getLastError() << std::endl;
         return false;
     }
 
@@ -42,6 +44,7 @@ bool HeaderBuffer::readHeader(const std::string& filename, HeaderRecord& header)
     if (file.gcount() < static_cast<std::streamsize>(headerSize)) 
     {
         setError("Header incomplete");
+        std::cerr << getLastError() << std::endl;
         return false;
     }
 

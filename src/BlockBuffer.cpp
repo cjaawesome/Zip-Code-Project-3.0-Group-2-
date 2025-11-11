@@ -55,59 +55,136 @@ bool BlockBuffer::readRecordAtRBN(const uint32_t rbn, const uint32_t zipCode, co
 
 bool BlockBuffer::removeRecordAtRBN(const uint32_t rbn, const uint16_t minBlockSize, uint32_t& availListRBN, const uint32_t zipCode, const uint32_t blockSize, const size_t headerSize)
 {
-    ActiveBlock block = loadActiveBlockAtRBN(rbn, blockSize, headerSize); //load block at rbn
+    ActiveBlock block = loadActiveBlockAtRBN(rbn, blockSize, headerSize); // Load block at rbn
 
     std::vector<ZipCodeRecord> records;
-    recordBuffer.unpackBlock(block.data, records); //unpack block data into records
+    recordBuffer.unpackBlock(block.data, records); // Unpack block data into records
 
-    auto it = std::find_if(records.begin(), records.end(), 
+    auto it = std::find_if(records.begin(), records.end(),
                              [zipCode](const ZipCodeRecord& rec) { return rec.getZipCode() == zipCode; });
     if(it == records.end())
         return false; // Record not found
 
     records.erase(it); // Remove the record
 
+    // Repack to get accurate size
+    recordBuffer.packBlock(records, block.data, blockSize);
+    block.recordCount = static_cast<uint16_t>(records.size());
+
     if(block.getTotalSize() < minBlockSize)
     {
-        // Try preceding block first
-        if (block.precedingRBN != 0) 
+        // Try merging with preceding block first
+        if (block.precedingRBN != 0)
         {
             ActiveBlock precedingBlock = loadActiveBlockAtRBN(block.precedingRBN, blockSize, headerSize);
             std::vector<ZipCodeRecord> precedingRecords;
             recordBuffer.unpackBlock(precedingBlock.data, precedingRecords);
-            
-            if (tryBorrowFromPreceding(block, precedingBlock, records, precedingRecords, 
-                                    blockSize, minBlockSize, headerSize, rbn)) 
+
+            // Check if we can merge all records into preceding block
+            size_t totalSize = 10; // metadata
+            for(const auto& rec : precedingRecords) 
             {
+                totalSize += rec.getRecordSize() + 4;
+            }
+            for(const auto& rec : records) 
+            
+            {
+                totalSize += rec.getRecordSize() + 4;
+            }
+
+            if(totalSize <= blockSize) {
+                // Full merge move all records to preceding and free current block
+                precedingRecords.insert(precedingRecords.end(), records.begin(), records.end());
+                std::sort(precedingRecords.begin(), precedingRecords.end(),
+                    [](const ZipCodeRecord& a, const ZipCodeRecord& b) 
+                    {
+                        return a.getZipCode() < b.getZipCode();
+                    });
+
+                recordBuffer.packBlock(precedingRecords, precedingBlock.data, blockSize);
+                precedingBlock.recordCount = static_cast<uint16_t>(precedingRecords.size());
+                precedingBlock.succeedingRBN = block.succeedingRBN;
+
+                // Update succeeding block's preceding pointer if it exists
+                if(block.succeedingRBN != 0) 
+                {
+                    ActiveBlock succeedingBlock = loadActiveBlockAtRBN(block.succeedingRBN, blockSize, headerSize);
+                    succeedingBlock.precedingRBN = block.precedingRBN;
+                    writeActiveBlockAtRBN(block.succeedingRBN, blockSize, headerSize, succeedingBlock);
+                }
+
+                writeActiveBlockAtRBN(block.precedingRBN, blockSize, headerSize, precedingBlock);
+                freeBlock(rbn, availListRBN, blockSize, headerSize);
                 mergeOccurred = true;
                 return true;
             }
+
+            // Try borrowing if full merge won't work
+            if (tryBorrowFromPreceding(block, precedingBlock, records, precedingRecords,
+                                    blockSize, minBlockSize, headerSize, rbn))
+            {
+                return true;
+            }
         }
-    
-        // Try succeeding block if preceding didn't work
-        if (block.succeedingRBN != 0) 
+
+        // Try merging/borrowing with succeeding block
+        if (block.succeedingRBN != 0)
         {
             ActiveBlock succeedingBlock = loadActiveBlockAtRBN(block.succeedingRBN, blockSize, headerSize);
             std::vector<ZipCodeRecord> succeedingRecords;
             recordBuffer.unpackBlock(succeedingBlock.data, succeedingRecords);
-            
-            if (tryBorrowFromSucceeding(block, succeedingBlock, records, succeedingRecords,
-                                        blockSize, minBlockSize, headerSize, rbn)) 
+
+            // Check if we can merge all records into current block
+            size_t totalSize = 10; // metadata
+            for(const auto& rec : records) 
             {
+                totalSize += rec.getRecordSize() + 4;
+            }
+            for(const auto& rec : succeedingRecords) 
+            {
+                totalSize += rec.getRecordSize() + 4;
+            }
+
+            if(totalSize <= blockSize) {
+                // Full merge - move all from succeeding to current, free succeeding
+                records.insert(records.end(), succeedingRecords.begin(), succeedingRecords.end());
+                std::sort(records.begin(), records.end(),
+                    [](const ZipCodeRecord& a, const ZipCodeRecord& b) 
+                    {
+                        return a.getZipCode() < b.getZipCode();
+                    });
+
+                recordBuffer.packBlock(records, block.data, blockSize);
+                block.recordCount = static_cast<uint16_t>(records.size());
+                block.succeedingRBN = succeedingBlock.succeedingRBN;
+
+                // Update the block after succeeding's preceding pointer if it exists
+                if(succeedingBlock.succeedingRBN != 0) 
+                {
+                    ActiveBlock nextBlock = loadActiveBlockAtRBN(succeedingBlock.succeedingRBN, blockSize, headerSize);
+                    nextBlock.precedingRBN = rbn;
+                    writeActiveBlockAtRBN(succeedingBlock.succeedingRBN, blockSize, headerSize, nextBlock);
+                }
+
+                writeActiveBlockAtRBN(rbn, blockSize, headerSize, block);
+                freeBlock(block.succeedingRBN, availListRBN, blockSize, headerSize);
                 mergeOccurred = true;
                 return true;
             }
+
+            // Try borrowing
+            if (tryBorrowFromSucceeding(block, succeedingBlock, records, succeedingRecords,
+                                        blockSize, minBlockSize, headerSize, rbn))
+            {
+                return true;
+            }
         }
-    
-        // Couldn't borrow from either - write underfull block
-        recordBuffer.packBlock(records, block.data, blockSize);
-        block.recordCount = static_cast<uint16_t>(records.size());
+
+        // Couldn't borrow or merge - write underfull block
         return writeActiveBlockAtRBN(rbn, blockSize, headerSize, block);
     }
     else // Block is still acceptable size after removal
     {
-        recordBuffer.packBlock(records, block.data, blockSize);
-        block.recordCount = static_cast<uint16_t>(records.size());
         return writeActiveBlockAtRBN(rbn, blockSize, headerSize, block);
     }
 }
@@ -266,6 +343,52 @@ bool BlockBuffer::writeActiveBlockAtRBN(const uint32_t rbn, const uint32_t block
         blockFile.write(padding.data(), padding.size());
     }
     return blockFile.good();
+}
+
+bool BlockBuffer::writeAvailBlockAtRBN(const uint32_t rbn, const uint32_t blockSize,
+                                       const size_t headerSize, const AvailBlock& block)
+{
+    if(!blockFile.is_open())
+    {
+        setError("File not open");
+        return false;
+    }
+
+    // Calculate offset - same as ActiveBlock since they occupy same space
+    std::streampos offset = headerSize + static_cast<std::streampos>(rbn) * blockSize;
+    blockFile.seekp(offset);
+
+    if(!blockFile.good())
+    {
+        setError("Failed to seek to RBN");
+        return false;
+    }
+
+    // Write AvailBlock structure: recordCount(2) + succeedingRBN(4) + padding
+    blockFile.write(reinterpret_cast<const char*>(&block.recordCount), sizeof(uint16_t));
+    blockFile.write(reinterpret_cast<const char*>(&block.succeedingRBN), sizeof(uint32_t));
+
+    // Write padding to fill the rest of the block
+    size_t paddingSize = blockSize - sizeof(uint16_t) - sizeof(uint32_t);
+    std::vector<char> padding(paddingSize, 0);
+    blockFile.write(padding.data(), paddingSize);
+
+    return blockFile.good();
+}
+
+void BlockBuffer::freeBlock(const uint32_t rbn, uint32_t& availListRBN,
+                            const uint32_t blockSize, const size_t headerSize)
+{
+    // Create an AvailBlock that points to the current avail list head
+    AvailBlock availBlock;
+    availBlock.recordCount = 0;  // No records in a freed block
+    availBlock.succeedingRBN = availListRBN;  // Point to current head
+
+    // Write the AvailBlock to disk
+    writeAvailBlockAtRBN(rbn, blockSize, headerSize, availBlock);
+
+    // Update the avail list head to point to this newly freed block
+    availListRBN = rbn;
 }
 
 const std::string& BlockBuffer::getLastError() const{

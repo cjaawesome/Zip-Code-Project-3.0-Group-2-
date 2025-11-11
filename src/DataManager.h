@@ -11,6 +11,7 @@
 #include "HeaderBuffer.h"
 #include "HeaderRecord.h"
 
+
 /**
  * @file DataManager.h
  * @brief Orchestrates streaming ZIP data and producing per-state extremes.
@@ -19,7 +20,8 @@
  *   State, EasternmostZIP, WesternmostZIP, NorthernmostZIP, SouthernmostZIP
  * Rows are sorted alphabetically by 2-letter state ID.
  */
-class DataManager {
+class DataManager 
+{
 public:
     struct Extremes {
         ZipCodeRecord easternmost;
@@ -73,14 +75,16 @@ public:
      */
     static std::string signatureFromLengthIndicated(const std::string& zcdPath);
 
+    static std::string signatureFromBlockedSequence(const std::string& zcbPath);
+
     /**
      * @brief Verify identical results when using two differently sorted files.
      * @return true if the signatures match; false otherwise
      */
     static bool verifyIdenticalResults(const std::string& fileA,
                                        const std::string& fileB,
-                                       bool fileAIsLengthIndicated = false,
-                                       bool fileBIsLengthIndicated = false);
+                                       const uint8_t fileAType,
+                                        const uint8_t fileBType);
 
 private:
     std::unordered_map<std::string, Extremes> stateExtremes_;
