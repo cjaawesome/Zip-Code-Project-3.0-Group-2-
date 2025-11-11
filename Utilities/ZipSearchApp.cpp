@@ -25,83 +25,160 @@ void ZipSearchApp::setDataFile(const std::string& file){
 
 bool ZipSearchApp::search(int argc, char* argv[])
 {
-    if(argc <= 1) return false; 
-    std::vector<uint32_t> zips; //zips being searched for
-    for (int i = 2; i < argc; ++i) 
-    {
-        std::string arg = argv[i];// get argument
-        if (arg.rfind("-Z", 0) == 0) 
-        { //if string argument indicator be found
-            uint32_t zip = std::stoi(arg.substr(2)); //get zip code
-            zips.push_back(zip); //add zip code to list
-        }
-    }
+    if (argc <= 1) return false;
 
-    HeaderRecord header;
-    HeaderBuffer buffer;
-
-    buffer.readHeader(fileName, header);
-
-    CSVBuffer file;
-    if(!file.openLengthIndicatedFile(fileName, header.getHeaderSize())) return false;
-
-    if(header.getStaleFlag() && index.read(header.getIndexFileName()))
-    {
-        std::cout << "Index file read successfully." << "\n" << std::endl;
-        index.read(header.getIndexFileName());
-    } 
-    else 
-    {
-        std::cout << "Index file not found or invalid. Creating index from data file: " << fileName << std::endl;
-        index.createFromDataFile(file);
-        if(index.write("zipcode_data.idx"))
-        {
-            std::cout << "Index File Written Succesfully." << "\n" << std::endl;
-
-            // Update header flag
-            header.setStaleFlag(1);
-            header.setIndexFileName("zipcode_data.idx");
-            
-            // Rewrite just the header section of the file
-            std::fstream file(fileName, std::ios::binary | std::ios::in | std::ios::out);
-            if (file.is_open()) 
-            {
-                file.seekp(0); // Go to start
-                auto headerData = header.serialize();
-                file.write(reinterpret_cast<char*>(headerData.data()), headerData.size());
-                file.close();
-                std::cout << "Header updated with index file info." << "\n" << std::endl;
+    // Collect requested zip codes from command line (-Zxxxxx)
+    std::vector<uint32_t> zips;
+    for (int i = 1; i < argc; ++i) {
+        std::string arg = argv[i];
+        if (arg.rfind("-Z", 0) == 0) {
+            try {
+                uint32_t zip = static_cast<uint32_t>(std::stoul(arg.substr(2)));
+                zips.push_back(zip);
+            } catch (...) {
+                std::cerr << "Invalid zip flag: " << arg << std::endl;
             }
         }
-        else
-        {
-            std::cerr << "Failed To Write Index File." << std::endl;
-            return false;
-        }
-       
     }
 
-    for (const auto& zip : zips)
-    {
+    if (zips.empty()) {
+        std::cerr << "No zip codes supplied (use -Zxxxxx flags)." << std::endl;
+        return false;
+    }
+
+    // Read header
+    HeaderRecord header;
+    HeaderBuffer headerBuf;
+    if (!headerBuf.readHeader(fileName, header)) {
+        std::cerr << "Failed to read header from " << fileName << std::endl;
+        return false;
+    }
+
+    const uint32_t blockSize = header.getBlockSize();
+    const uint32_t headerSize = header.getHeaderSize();
+
+    // Use BlockIndexFile to store simple index entries {highestKey, RBN}
+    std::string simpleIndexFile = fileName + ".sidx";
+    BlockIndexFile bix;
+
+    if (!bix.read(simpleIndexFile)) {
+        // Build from data file by scanning records and tracking highest key per RBN
+        CSVBuffer dataBuf;
+        if(!dataBuf.openLengthIndicatedFile(fileName, headerSize)){
+            std::cerr << "Failed to open data file for indexing." << std::endl;
+            return false;
+        }
+
+        std::map<uint32_t, uint32_t> highestPerRbn; // rbn -> highest key
+
+        ZipCodeRecord rec;
+        size_t dataOffset = dataBuf.getMemoryOffset();
+        while (dataBuf.getNextLengthIndicatedRecord(rec)) {
+            uint32_t zip = rec.getZipCode();
+            if (dataOffset < headerSize) dataOffset = headerSize;
+            uint32_t rbn = static_cast<uint32_t>((dataOffset - headerSize) / blockSize);
+            auto it = highestPerRbn.find(rbn);
+            if (it == highestPerRbn.end() || zip > it->second) highestPerRbn[rbn] = zip;
+            dataOffset = dataBuf.getMemoryOffset();
+        }
+        // Add entries to BlockIndexFile. addIndexEntry will keep ordering.
+        for (const auto &kv : highestPerRbn) {
+            IndexEntry ie;
+            ie.key = kv.second; // highest zip
+            ie.recordRBN = kv.first; // rbn
+            bix.addIndexEntry(ie);
+        }
+        if (!bix.write(simpleIndexFile)) {
+            std::cerr << "Failed to write simple index file: " << simpleIndexFile << std::endl;
+        } else {
+            std::cout << "Built simple primary key index (" << highestPerRbn.size() << " entries)" << std::endl;
+        }
+    }
+
+    // Open block file reader
+    BlockBuffer blockBuf;
+    if(!blockBuf.openFile(fileName, headerSize)){
+        std::cerr << "Failed to open block file for reading: " << fileName << std::endl;
+        return false;
+    }
+
+    // For each searched zip, find block via simple index then scan that block
+    for (uint32_t zip : zips) {
         std::cout << "Searching for zip code: " << zip << std::endl;
-        ZipCodeRecord record;
-        if (!index.contains(zip)) 
-        {
-            std::cout << "Zip code " << zip << " not found." << std::endl;
+
+        // Ask BlockIndexFile for the RBN
+        uint32_t rbn = bix.findRBNForKey(zip);
+        if (rbn == static_cast<uint32_t>(-1)) {
+            std::cout << "Zip code " << zip << " not found in index." << std::endl;
             continue;
         }
-        for (const auto& offset : index.find(zip))
-        {
-            //print the memory offsets associated with the zip code
-            std::cout << "Found at memory offset: " << offset << std::endl;
-            file.readRecordAtMemoryAddress(offset, record);
-            std::cout << "Zip: " << record.getZipCode() 
-                << ", Location: " << record.getLocationName()
-                << ", State: " << record.getState()
-                << ", County: " << record.getCounty()
-                << ", Lat: " << record.getLatitude()
-                << ", Lon: " << record.getLongitude() << "\n" << std::endl;
-            
+        ActiveBlock ab = blockBuf.loadActiveBlockAtRBN(rbn, blockSize, headerSize);
+
+        // parse ab.data into a vector of ZipCodeRecords
+        std::vector<ZipCodeRecord> blockRecords;
+        if (!parseBlockData(ab.data, blockRecords)) {
+            std::cerr << "Failed to parse block data for RBN " << rbn << std::endl;
+            continue;
+        }
+
+        // search vector for exact zip match
+        bool found = false;
+        for (const auto &r : blockRecords) {
+            if (r.getZipCode() == zip) {
+                found = true;
+                std::cout << "Found: ZIP=" << r.getZipCode()
+                    << ", Location=" << r.getLocationName()
+                    << ", State=" << r.getState()
+                    << ", County=" << r.getCounty()
+                    << ", Lat=" << r.getLatitude()
+                    << ", Lon=" << r.getLongitude() << std::endl;
+                break;
+            }
+        }
+        if (!found) std::cout << "Zip code " << zip << " not found in block " << rbn << std::endl;
+    }
+
+    return true;
+}
+
+bool ZipSearchApp::parseCsvToRecord(const std::string& csv, ZipCodeRecord& out)
+{
+    std::vector<std::string> fields;
+    size_t start = 0;
+    while (start <= csv.size()) {
+        size_t pos = csv.find(',', start);
+        if (pos == std::string::npos) pos = csv.size();
+        fields.push_back(csv.substr(start, pos - start));
+        start = pos + 1;
+        if (pos == csv.size()) break;
+    }
+    if (fields.size() != 6) return false;
+    try {
+        uint32_t zip = static_cast<uint32_t>(std::stoul(fields[0]));
+        double lat = std::stod(fields[4]);
+        double lon = std::stod(fields[5]);
+        out = ZipCodeRecord(static_cast<int>(zip), lat, lon, fields[1], fields[2], fields[3]);
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
+bool ZipSearchApp::parseBlockData(const std::vector<char>& raw, std::vector<ZipCodeRecord>& blockRecords)
+{
+    blockRecords.clear();
+    size_t pos = 0;
+    while (pos + 4 <= raw.size()) {
+        uint32_t recLen = 0;
+        memcpy(&recLen, raw.data() + pos, sizeof(recLen));
+        pos += 4;
+        if (recLen == 0 || pos + recLen > raw.size()) break;
+        std::string csv(recLen, '\0');
+        memcpy(&csv[0], raw.data() + pos, recLen);
+        pos += recLen;
+        ZipCodeRecord r;
+        if (parseCsvToRecord(csv, r)) {
+            blockRecords.push_back(r);
         }
     }
     return true;

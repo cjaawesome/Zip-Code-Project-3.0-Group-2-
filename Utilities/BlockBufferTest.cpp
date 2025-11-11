@@ -124,8 +124,7 @@ bool convertCSVToBlockedSequenceSet(const std::string& csvFile, const std::strin
 
             entry.key = currentBlockRecords.front().getZipCode();
             entry.recordRBN = currentRBN;
-            entry.previousRBN = block.precedingRBN;
-            entry.nextRBN = block.succeedingRBN;
+            
             
             blockIndexFile.addIndexEntry(entry);
 
