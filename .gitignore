@@ -9,7 +9,7 @@
 *.zcb
 
 # Keep CSVs for testing
-#!*.csv
+!*.csv
 
 # IDE/Editor files
 .vscode/
