@@ -48,14 +48,49 @@ bool ZipSearchApp::search(int argc, char* argv[])
 
     // Read header
     HeaderRecord header;
-    HeaderBuffer headerBuf;
-    if (!headerBuf.readHeader(fileName, header)) {
+    HeaderBuffer headerBuffer;
+    if (!headerBuffer.readHeader(fileName, header)) {
         std::cerr << "Failed to read header from " << fileName << std::endl;
         return false;
     }
-
+    
     const uint32_t blockSize = header.getBlockSize();
     const uint32_t headerSize = header.getHeaderSize();
+    const uint32_t blockCount = header.getBlockCount();
+    BlockIndexFile blockIndexFile;
+
+    if(!header.getStaleFlag()){
+        BlockBuffer blockBuffer;
+        if(!blockBuffer.openFile(fileName, headerSize)){
+            std::cerr << "Failed to open block buffer." << std::endl;    
+        }
+        for(size_t i = 1; i < blockCount; ++i){
+            for(const auto& zip : zips){
+                ZipCodeRecord record;
+                if(blockBuffer.readRecordAtRBN(i, zip, blockSize, headerSize, record)){
+                    /*
+                    Need to figure out how to get highest zip code from each block
+
+                    build a block index for block that contains the zip being searched for if not in the index file
+                    */
+                }
+            }
+        }
+    }
+    else{
+        if(!blockIndexFile.read(header.getIndexFileName())){
+            std::cerr << "Failed to read index file: " << header.getIndexFileName() << std::endl;
+            return false;
+        }
+    }
+
+    /*
+    search index file for zip codes
+    */
+
+    /*
+    pack up new index file if needed.
+    */
 
     return true;
 }
