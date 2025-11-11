@@ -2,8 +2,12 @@
 #define ZIP_SEARCH_APP
 
 #include "PrimaryKeyIndex.h"
+#include "BlockIndexFile.h"
+
 #include "CSVBuffer.h"
 #include "ZipCodeRecord.h"
+#include "BlockBuffer.h"
+#include "Block.h"
 #include <iostream>
 #include <fstream>
 #include <string>
