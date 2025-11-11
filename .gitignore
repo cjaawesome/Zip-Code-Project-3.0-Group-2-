@@ -6,9 +6,10 @@
 # Generated data files
 *.zcd
 *.idx
+*.zcb
 
 # Keep CSVs for testing
-!*.csv
+#!*.csv
 
 # IDE/Editor files
 .vscode/

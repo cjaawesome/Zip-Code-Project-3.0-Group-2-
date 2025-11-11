@@ -12,11 +12,15 @@
 #include <cstring>
 #include <algorithm>
 
-void printUsage(const char* programName) 
+void printUsage(const char* programName)
 {
     std::cout << "Usage:\n"
               << "  Convert CSV to ZCD:\n"
               << "    " << programName << " convert <input.csv> <output.zcd>\n\n"
+              << "  Convert CSV to Blocked Sequence Set:\n"
+              << "    " << programName << " convert-blocked <input.csv> <output.zcb> [blockSize] [minBlockSize]\n"
+              << "    blockSize: block size in bytes (default: 1024)\n"
+              << "    minBlockSize: minimum block size (default: 256)\n\n"
               << "  Read ZCD file:\n"
               << "    " << programName << " read <input.zcd> [count]\n"
               << "    count: number of records to display (default: 5)\n\n"
@@ -28,11 +32,13 @@ void printUsage(const char* programName)
               << "    " << programName << " zcd-search <input.zcd> <zipcode_data.idx> <zip> [<zip> ...]\n\n"
               << "Examples:\n"
               << "  " << programName << " convert PT2_CSV.csv output.zcd\n"
+              << "  " << programName << " convert-blocked PT2_CSV.csv output.zcb\n"
+              << "  " << programName << " convert-blocked PT2_CSV.csv output.zcb 2048 512\n"
               << "  " << programName << " read output.zcd 10\n"
               << "  " << programName << " header output.zcd\n"
               << "  " << programName << " verify PT2_CSV.csv output.zcd\n"
               << "  " << programName << " zcd-search output.zcd zipcode_data.idx 55455 30301\n";
-              
+
 }
 
 bool convertCSVtoZCD(const std::string& inFile, const std::string& outFile) 
@@ -383,7 +389,7 @@ int main(int argc, char* argv[])
     
     std::string command = argv[1];
     
-    if (command == "convert") 
+    if (command == "convert")
     {
         if (argc != 4) {
             std::cerr << "Error: convert requires input and output filenames\n";
@@ -391,6 +397,17 @@ int main(int argc, char* argv[])
             return 1;
         }
         return convertCSVtoZCD(argv[2], argv[3]) ? 0 : 1;
+    }
+    else if (command == "convert-blocked")
+    {
+        if (argc < 4) {
+            std::cerr << "Error: convert-blocked requires input and output filenames\n";
+            printUsage(argv[0]);
+            return 1;
+        }
+        uint32_t blockSize = (argc >= 5) ? std::atoi(argv[4]) : 1024;
+        uint16_t minBlockSize = (argc >= 6) ? std::atoi(argv[5]) : 256;
+        return convertCSVToBlockedSequenceSet(argv[2], argv[3], blockSize, minBlockSize) ? 0 : 1;
     }
     else if (command == "read") 
     {

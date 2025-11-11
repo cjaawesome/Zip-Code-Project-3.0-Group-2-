@@ -13,9 +13,9 @@
 #include "../src/ZipCodeRecord.h"
 #include "../src/CSVBuffer.h"
 
-const std::string FILE_PATH_IN = "PT2_Randomized.csv";
-const std::string FILE_PATH_OUT = "PT2_Randomized.zcd";
-const std::string& FILE_PATH_INDEX = "PT2_Randomized.idx";
+const std::string FILE_PATH_IN = "../data/PT2_Randomized.csv";
+const std::string FILE_PATH_OUT = "../data/PT2_Randomized.zcd";
+const std::string& FILE_PATH_INDEX = "../data/PT2_Randomized.idx";
 
 //from ZCDUtility.cpp
 bool convertCSVToBlockedSequenceSet(const std::string& csvFile, const std::string& zcbFile, const std::string& indexFile, 
