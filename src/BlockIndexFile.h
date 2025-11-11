@@ -10,8 +10,6 @@ struct  IndexEntry
 {
     uint32_t key; // The key for the index entry
     uint32_t recordRBN; // The RBN of the record in the data file
-    uint32_t previousRBN; //previous RBN
-    uint32_t nextRBN; //next RBN
 };
 
 class BlockIndexFile
