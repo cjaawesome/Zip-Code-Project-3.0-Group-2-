@@ -44,17 +44,20 @@ void printUsage(const char* programName)
 bool convertCSVtoZCD(const std::string& inFile, const std::string& outFile) 
 {
     CSVBuffer csvBuffer;
-    
+
     HeaderRecord header;
-    header.setFileStructureType("ZIPC");
+    header.setFileStructureType("ZCD");      // <- use consistent type
     header.setVersion(1);
-    header.setSizeFormatType(0);
-    header.setBlockSize(512); // Placeholder
-    header.setMinBlockSize(256); // Placeholder
+    header.setSizeFormatType(0);             // whatever your binary format enum means
+    header.setBlockSize(0);                  // ZCD: not used
+    header.setMinBlockSize(0);               // ZCD: not used
     header.setIndexFileName("zipcode_data.idx");
-    header.setIndexFileSchemaInfo("Primary Key: Zipcode"); // Placeholder. Binary defeats the purpose of this.
+    header.setIndexFileSchemaInfo("Primary Key: Zipcode");
     header.setRecordCount(0);
-    
+    header.setAvailableListRBN(-1);          // ZCD: not used
+    header.setSequenceSetListRBN(-1);        // ZCD: not used
+    header.setStaleFlag(true);               // becomes false after index is written
+
     std::vector<FieldDef> fields;
     fields.push_back({"zipcode", 1});
     fields.push_back({"location", 3});
@@ -62,93 +65,102 @@ bool convertCSVtoZCD(const std::string& inFile, const std::string& outFile)
     fields.push_back({"county", 3});
     fields.push_back({"latitude", 2});
     fields.push_back({"longitude", 2});
-    
+
     header.setFields(fields);
     header.setFieldCount(csvBuffer.EXPECTED_FIELD_COUNT);
     header.setPrimaryKeyField(0);
-    header.setAvailableListRBN(0); // Placeholder
-    header.setSequenceSetListRBN(0); // Placeholder
-    header.setStaleFlag(0);
-    
-    std::ofstream out(outFile, std::ios::binary);
-    if (!out.is_open()) 
-    {
+
+    // open output file
+    std::ofstream out(outFile, std::ios::binary | std::ios::trunc);
+    if (!out.is_open()){
         std::cerr << "Error: Cannot create output file: " << outFile << std::endl;
         return false;
     }
-    
-    auto headerData = header.serialize();
-    header.setHeaderSize(headerData.size());  // ← FIX: Update header size
-    
-    std::cerr << "DEBUG: Serialized header size = " << headerData.size() << "\n";  // ← DEBUG HERE
-    
-    out.write(reinterpret_cast<char*>(headerData.data()), headerData.size());
-    
-    size_t recordCountOffset = 4 + 2 + 4 + 1 + 4 + 1 + 2 + 2 +
-                                header.getIndexFileName().length() + header.getIndexFileSchemaInfo().length();
-    
-    if (!csvBuffer.openFile(inFile)) 
+
+    // --- write a temporary header; we will rewrite it at the end with final sizes ---
     {
+        auto headerData = header.serialize();
+        header.setHeaderSize(static_cast<uint32_t>(headerData.size())); // set it
+        headerData = header.serialize(); // re-serialize so headerSize is embedded correctly
+        std::cerr << "DEBUG: Serialized header size = " << headerData.size() << "\n";
+        out.write(reinterpret_cast<const char*>(headerData.data()), headerData.size());
+    }
+
+    if (!csvBuffer.openFile(inFile)){
         std::cerr << "Error: Failed to open CSV file: " << csvBuffer.getLastError() << std::endl;
         return false;
     }
-    
+
     std::cout << "Converting " << inFile << " to " << outFile << "..." << std::endl;
 
+    // write length-indicated, comma-separated records
     ZipCodeRecord record;
-    while (csvBuffer.getNextRecord(record))
-    {
-        std::string recordStr = std::to_string(record.getZipCode()) + "," +
-                               record.getLocationName() + "," +
-                               std::string(record.getState()) + "," +
-                               record.getCounty() + "," +
-                               std::to_string(record.getLatitude()) + "," +
-                               std::to_string(record.getLongitude());
-        
-        uint32_t len = recordStr.length();
-        out.write(reinterpret_cast<char*>(&len), 4);
-        out.write(recordStr.c_str(), len);
-    }
+    uint64_t count = 0;
 
-    uint32_t actualRecordCount = csvBuffer.getRecordsProcessed();
-    out.seekp(recordCountOffset);
-    out.write(reinterpret_cast<char*>(&actualRecordCount), sizeof(uint32_t));
-    
+    // helpers for stable float formatting
+    auto to_fixed = [](double v){
+        std::ostringstream oss;
+        oss.setf(std::ios::fixed); 
+        oss.precision(6);
+        oss << v;
+        return oss.str();
+    };
+
+    while (csvBuffer.getNextRecord(record)){
+        std::string recordStr =
+            std::to_string(record.getZipCode()) + "," +
+            record.getLocationName() + "," +
+            std::string(record.getState()) + "," +
+            record.getCounty() + "," +
+            to_fixed(record.getLatitude()) + "," +
+            to_fixed(record.getLongitude());
+
+        uint32_t len = static_cast<uint32_t>(recordStr.size());
+        out.write(reinterpret_cast<const char*>(&len), sizeof(uint32_t));
+        out.write(recordStr.data(), len);
+        ++count;
+    }
     csvBuffer.closeFile();
     out.close();
-    
-    std::cout << "Success: Converted " << actualRecordCount << " records" << std::endl;
 
-    // Reopen for index creation
+    std::cout << "Success: Converted " << count << " records" << std::endl;
+
+    // --- Generate simple index from the ZCD we just wrote ---
     std::cout << "Now generating index file..." << std::endl;
-    if (!csvBuffer.openLengthIndicatedFile(outFile, header.getHeaderSize())) 
-    {
+
+    if (!csvBuffer.openLengthIndicatedFile(outFile, header.getHeaderSize())){
         std::cerr << "Error: Failed to reopen file for indexing" << std::endl;
         return false;
     }
-
     PrimaryKeyIndex keyIndex;
     keyIndex.createFromDataFile(csvBuffer);
     csvBuffer.closeFile();
 
-    if (keyIndex.write(header.getIndexFileName())) 
-    {
-        std::cout << "Success: Index file generated: " << header.getIndexFileName() << std::endl;
-        
-        std::fstream zcdFile(outFile, std::ios::binary | std::ios::in | std::ios::out);
-        uint8_t validFlag = 1;
-        size_t flagOffset = header.getHeaderSize() - 1;
-        
-        zcdFile.seekp(flagOffset);
-        zcdFile.write(reinterpret_cast<char*>(&validFlag), sizeof(uint8_t));
-        
-        zcdFile.close();
-    } 
-    else 
-    {
+    if (!keyIndex.write(header.getIndexFileName())){
         std::cerr << "Error: Failed to write index file" << std::endl;
         return false;
     }
+    std::cout << "Success: Index file generated: " << header.getIndexFileName() << std::endl;
+
+    // --- Rewrite header at file start with final values (recordCount, headerSize, staleFlag=false) ---
+    header.setRecordCount(count);
+    header.setStaleFlag(false);
+
+    // use your HeaderBuffer if you have one; otherwise rewrite manually
+    {
+        std::fstream io(outFile, std::ios::binary | std::ios::in | std::ios::out);
+        if (!io){
+            std::cerr << "Warning: could not reopen ZCD to rewrite header\n";
+        } else {
+            auto finalHeader = header.serialize();
+            header.setHeaderSize(static_cast<uint32_t>(finalHeader.size()));
+            finalHeader = header.serialize(); // re-serialize with updated size again
+            io.seekp(0, std::ios::beg);
+            io.write(reinterpret_cast<const char*>(finalHeader.data()), finalHeader.size());
+            io.flush();
+        }
+    }
+
     return true;
 }
 
@@ -208,23 +220,18 @@ bool convertCSVToBlockedSequenceSet(const std::string& csvFile, const std::strin
     header.setStaleFlag(0);
 
     std::ofstream out(zcbFile, std::ios::binary);
-    if (!out.is_open()) 
-    {
+    if (!out.is_open()) {
         std::cerr << "Error: Cannot create output file: " << zcbFile << std::endl;
         return false;
     }
-    
+
+    // Correct header serialization (include headerSize itself)
     auto headerData = header.serialize();
-    header.setHeaderSize(headerData.size());
-    
-    out.write(reinterpret_cast<char*>(headerData.data()), headerData.size());
-    
-    size_t blockCountOffset = 4 + 2 + 4 + 1 + 4 + 2 + 2 + 
-                         header.getIndexFileName().length() + 
-                         2 + header.getIndexFileSchemaInfo().length() + 
-                         sizeof(uint32_t);
-    
-    std::cout << "Converting " << csvFile << " to " << zcbFile << "..." << std::endl;
+    header.setHeaderSize(static_cast<uint32_t>(headerData.size()));
+    headerData = header.serialize();  // re-serialize so headerSize is embedded
+    out.write(reinterpret_cast<const char*>(headerData.data()), headerData.size());
+    out.flush();
+    out.close();  //  close before BlockBuffer reopens same file
 
     RecordBuffer recordBuffer;
     BlockBuffer blockBuffer;
@@ -278,8 +285,40 @@ bool convertCSVToBlockedSequenceSet(const std::string& csvFile, const std::strin
         ++blockCount;
     }
 
-    out.seekp(blockCountOffset);
-    out.write(reinterpret_cast<char*>(&blockCount), sizeof(uint32_t));
+    // Calculate offset for blockCount in header
+    std::streamoff blockCountOffset = 0;
+    {
+        // Re-serialize header to find offset of blockCount
+        auto headerData = header.serialize();
+        // Find the offset of blockCount in the header structure
+        // This assumes blockCount is written after recordCount (which is after indexFileSchemaInfo)
+        // You may need to adjust this calculation based on your actual header layout
+        // Here we search for the blockCount value in the serialized header
+        uint32_t dummyBlockCount = 0;
+        auto it = std::search(headerData.begin(), headerData.end(),
+                              reinterpret_cast<const uint8_t*>(&dummyBlockCount),
+                              reinterpret_cast<const uint8_t*>(&dummyBlockCount) + sizeof(uint32_t));
+        if (it != headerData.end()) {
+            blockCountOffset = std::distance(headerData.begin(), it);
+        } else {
+            // Fallback: use a fixed offset if known, or skip updating here
+            blockCountOffset = 0; // Or set to the correct offset manually
+        }
+    }
+
+    std::fstream outUpdate(zcbFile, std::ios::in | std::ios::out | std::ios::binary);
+    if (outUpdate.is_open() && blockCountOffset > 0) {
+        outUpdate.seekp(blockCountOffset);
+        outUpdate.write(reinterpret_cast<char*>(&blockCount), sizeof(uint32_t));
+        outUpdate.close();
+    }
+
+    header.setBlockCount(blockCount);
+    header.setSequenceSetListRBN(1);   // usually 1 (first block RBN)
+    header.setAvailableListRBN(0);          // if no avail yet
+    header.setRecordCount(allRecords.size());
+    HeaderBuffer hb;
+    hb.writeHeader(zcbFile, header);
 
     // Once index are setup creating the index and setting the stale flag will go here.
 
@@ -378,6 +417,73 @@ static bool readLengthIndicatedRecordAt(const std::string& zcdPath,
 
     out.resize(len);
     return static_cast<bool>(in.read(out.data(), len));
+}
+
+// quick CSV parser for a single line "zip,location,state,county,lat,lon"
+static bool parseOneCSVLine(const std::string& line, ZipCodeRecord& rec) {
+    std::stringstream ss(line);
+    std::string zip, location, state, county, lat, lon;
+
+    if (!std::getline(ss, zip, ',')) return false;
+    if (!std::getline(ss, location, ',')) return false;
+    if (!std::getline(ss, state, ',')) return false;
+    if (!std::getline(ss, county, ',')) return false;
+    if (!std::getline(ss, lat, ',')) return false;
+    if (!std::getline(ss, lon, ',')) return false;
+
+    try {
+        rec.setZipCode(static_cast<uint32_t>(std::stoul(zip)));
+        rec.setLocationName(location);
+        rec.setState(state.c_str());
+        rec.setCounty(county);
+        rec.setLatitude(std::stod(lat));
+        rec.setLongitude(std::stod(lon));
+        return true;
+    } catch (...) { return false; }
+}
+
+// get highest zip in a block (assumes block.data holds sorted records)
+static uint32_t highestZipInBlock(BlockBuffer& bb,
+                                  uint32_t rbn,
+                                  uint32_t blockSize,
+                                  size_t headerSize,
+                                  RecordBuffer& rb)
+{
+    auto blk = bb.loadActiveBlockAtRBN(rbn, blockSize, headerSize);
+    std::vector<ZipCodeRecord> recs;
+    rb.unpackBlock(blk.data, recs);
+    if (recs.empty()) return 0;
+    return recs.back().getZipCode();
+}
+
+// follow logical chain to find target block RBN for a zip
+static uint32_t findTargetBlockRBN(BlockBuffer& bb,
+                                   uint32_t seqHead,
+                                   uint32_t zip,
+                                   uint32_t blockSize,
+                                   size_t headerSize,
+                                   RecordBuffer& rb)
+{
+    uint32_t curr = seqHead;
+    while (curr != 0) {
+        auto blk = bb.loadActiveBlockAtRBN(curr, blockSize, headerSize);
+        std::vector<ZipCodeRecord> recs; rb.unpackBlock(blk.data, recs);
+        if (!recs.empty()) {
+            uint32_t highest = recs.back().getZipCode();
+            if (zip <= highest) return curr;  // fits here
+        }
+        curr = blk.succeedingRBN;
+    }
+    // larger than all -> insert in rightmost block (the last in chain)
+    // find rightmost:
+    curr = seqHead;
+    uint32_t last = 0;
+    while (curr != 0) {
+        auto blk = bb.loadActiveBlockAtRBN(curr, blockSize, headerSize);
+        last = curr;
+        curr = blk.succeedingRBN;
+    }
+    return last;
 }
 
 int main(int argc, char* argv[]) 
@@ -486,6 +592,225 @@ int main(int argc, char* argv[])
     }
     return 0;
     }
+    else if (command == "dump-physical")
+{
+    if (argc != 3) {
+        std::cerr << "Error: dump-physical requires <blocked.zcb>\n";
+        printUsage(argv[0]);
+        return 1;
+    }
+    const std::string zcb = argv[2];
+
+    HeaderRecord hdr; HeaderBuffer hb;
+    if (!hb.readHeader(zcb, hdr)) {
+        std::cerr << "Error: bad or missing header in " << zcb << "\n";
+        return 1;
+    }
+
+    BlockBuffer bb;
+    if (!bb.openFile(zcb, hdr.getHeaderSize())) {
+        std::cerr << "Error: cannot open " << zcb << "\n";
+        return 1;
+    }
+
+    bb.dumpPhysicalOrder(std::cout,
+                         hdr.getSequenceSetListRBN(),  // head of active list
+                         hdr.getAvailableListRBN(),    // head of avail list
+                         hdr.getBlockCount(),          // number of blocks
+                         hdr.getBlockSize(),
+                         hdr.getHeaderSize());
+    return 0;
+}
+else if (command == "dump-logical")
+{
+    if (argc != 3) {
+        std::cerr << "Error: dump-logical requires <blocked.zcb>\n";
+        printUsage(argv[0]);
+        return 1;
+    }
+    const std::string zcb = argv[2];
+
+    HeaderRecord hdr; HeaderBuffer hb;
+    if (!hb.readHeader(zcb, hdr)) {
+        std::cerr << "Error: bad or missing header in " << zcb << "\n";
+        return 1;
+    }
+
+    BlockBuffer bb;
+    if (!bb.openFile(zcb, hdr.getHeaderSize())) {
+        std::cerr << "Error: cannot open " << zcb << "\n";
+        return 1;
+    }
+
+    bb.dumpLogicalOrder(std::cout,
+                        hdr.getSequenceSetListRBN(),  // head of active list
+                        hdr.getAvailableListRBN(),    // head of avail list
+                        hdr.getBlockSize(),
+                        hdr.getHeaderSize());
+    return 0;
+}
+else if (command == "add")
+{
+    if (argc != 4) {
+        std::cerr << "Usage: " << argv[0] << " add <blocked.zcb> <records.csv>\n";
+        return 1;
+    }
+    const std::string zcb = argv[2];
+    const std::string recFile = argv[3];
+
+    HeaderRecord hdr; HeaderBuffer hb;
+    if (!hb.readHeader(zcb, hdr)) {
+        std::cerr << "Error: bad header in " << zcb << "\n";
+        return 1;
+    }
+
+    BlockBuffer bb;
+    if (!bb.openFile(zcb, hdr.getHeaderSize())) {
+        std::cerr << "Error: cannot open " << zcb << "\n";
+        return 1;
+    }
+
+    std::ifstream in(recFile);
+    if (!in) { std::cerr << "Error: cannot open " << recFile << "\n"; return 1; }
+
+    RecordBuffer rb;
+    uint32_t avail = static_cast<uint32_t>(hdr.getAvailableListRBN());
+    uint32_t blocks = hdr.getBlockCount();
+    uint32_t seqHead = hdr.getSequenceSetListRBN();
+    if (seqHead == 0) { std::cerr << "Error: empty sequence set.\n"; return 1; }
+
+    size_t added = 0;
+    std::string line;
+    while (std::getline(in, line)) {
+        if (line.empty()) continue;
+        ZipCodeRecord rec;
+        if (!parseOneCSVLine(line, rec)) {
+            std::cerr << "Skip bad line: " << line << "\n"; continue;
+        }
+        uint32_t target = findTargetBlockRBN(bb, seqHead, rec.getZipCode(),
+                                             hdr.getBlockSize(), hdr.getHeaderSize(), rb);
+
+        uint32_t blocksBefore = blocks;
+        uint32_t availBefore  = avail;
+
+        if (!bb.addRecord(target, hdr.getBlockSize(), avail, rec, hdr.getHeaderSize(), blocks)) {
+            std::cerr << "ADD failed for zip " << rec.getZipCode() << "\n";
+            continue;
+        }
+        ++added;
+
+        // Log split if block count changed or avail head consumed
+        if (blocks != blocksBefore || avail != availBefore) {
+            std::cout << "SPLIT: added zip " << rec.getZipCode()
+                      << " (blocks " << blocksBefore << "→" << blocks
+                      << ", availHead " << availBefore << "→" << avail << ")\n";
+        }
+    }
+
+    // persist header
+    hdr.setAvailableListRBN(static_cast<int32_t>(avail));
+    hdr.setBlockCount(blocks);
+    hb.writeHeader(zcb, hdr);
+
+    std::cout << "ADD: inserted " << added << " records.\n";
+    return 0;
+}
+else if (command == "del")
+{
+    if (argc != 4) {
+        std::cerr << "Usage: " << argv[0] << " del <blocked.zcb> <keys.txt>\n";
+        return 1;
+    }
+    const std::string zcb = argv[2];
+    const std::string keyFile = argv[3];
+
+    HeaderRecord hdr; HeaderBuffer hb;
+    if (!hb.readHeader(zcb, hdr)) {
+        std::cerr << "Error: bad header in " << zcb << "\n";
+        return 1;
+    }
+
+    BlockBuffer bb;
+    if (!bb.openFile(zcb, hdr.getHeaderSize())) {
+        std::cerr << "Error: cannot open " << zcb << "\n";
+        return 1;
+    }
+
+    std::ifstream in(keyFile);
+    if (!in) { std::cerr << "Error: cannot open " << keyFile << "\n"; return 1; }
+
+    RecordBuffer rb;
+    uint32_t avail = static_cast<uint32_t>(hdr.getAvailableListRBN());
+    uint32_t blocks = hdr.getBlockCount();
+    uint32_t seqHead = hdr.getSequenceSetListRBN();
+    if (seqHead == 0) { std::cerr << "Error: empty sequence set.\n"; return 1; }
+
+    size_t removed = 0;
+    std::string s;
+    while (std::getline(in, s)) {
+        if (s.empty()) continue;
+        uint32_t zip = 0;
+        try { zip = static_cast<uint32_t>(std::stoul(s)); } catch (...) { continue; }
+
+        // find candidate block by walking until highest >= zip
+        uint32_t target = findTargetBlockRBN(bb, seqHead, zip,
+                                             hdr.getBlockSize(), hdr.getHeaderSize(), rb);
+        uint32_t availBefore  = avail;
+        uint32_t blocksBefore = blocks;
+
+        bool ok = bb.removeRecordAtRBN(target,
+                                       static_cast<uint16_t>(hdr.getMinBlockSize()),
+                                       avail, zip, hdr.getBlockSize(), hdr.getHeaderSize());
+        if (!ok) {
+            std::cout << "DELETE: zip " << zip << " not found (or unchanged)\n";
+            continue;
+        }
+        ++removed;
+
+        // Log merge/redistribution heuristic (we don’t have explicit flags; rely on counters)
+        if (blocks != blocksBefore || avail != availBefore) {
+            std::cout << "MERGE/REDIST: removed zip " << zip
+                      << " (blocks " << blocksBefore << "→" << blocks
+                      << ", availHead " << availBefore << "→" << avail << ")\n";
+        }
+    }
+
+    // persist header
+    hdr.setAvailableListRBN(static_cast<int32_t>(avail));
+    hdr.setBlockCount(blocks);
+    hb.writeHeader(zcb, hdr);
+
+    std::cout << "DEL: removed " << removed << " keys.\n";
+    return 0;
+}
+else if (command == "dump-block" && argc == 4) {
+    const std::string zcb = argv[2];
+    const uint32_t rbn = static_cast<uint32_t>(std::stoul(argv[3]));
+
+    HeaderRecord hdr; HeaderBuffer hb;
+    if (!hb.readHeader(zcb, hdr)) { std::cerr << "Bad header\n"; return 1; }
+
+    BlockBuffer bb;
+    if (!bb.openFile(zcb, hdr.getHeaderSize())) { std::cerr << "Open failed\n"; return 1; }
+
+    auto blk = bb.loadActiveBlockAtRBN(rbn, hdr.getBlockSize(), hdr.getHeaderSize());
+    std::cout << "RBN " << rbn << " recordCount=" << blk.recordCount
+              << " prev=" << blk.precedingRBN << " next=" << blk.succeedingRBN << "\n";
+
+    if (blk.recordCount == 0) {
+        auto ab = bb.loadAvailBlockAtRBN(rbn, hdr.getBlockSize(), hdr.getHeaderSize());
+        std::cout << "  *available*  nextAvail=" << ab.succeedingRBN << "\n";
+    } else {
+        std::vector<ZipCodeRecord> recs;
+        RecordBuffer rb;
+        rb.unpackBlock(blk.data, recs);
+        std::cout << "  zips: ";
+        for (auto &r : recs) std::cout << r.getZipCode() << " ";
+        std::cout << "\n";
+    }
+    return 0;
+}
+
 
     else 
     {
