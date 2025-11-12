@@ -5,6 +5,7 @@
 #include "../src/HeaderBuffer.h"
 #include "ZipSearchApp.h"
 #include <iostream>
+#include <sstream>
 #include <map>
 #include <fstream>
 #include <string>
@@ -61,18 +62,33 @@ bool ZipSearchApp::search(int argc, char* argv[])
 
     if(!header.getStaleFlag()){
         BlockBuffer blockBuffer;
+        //open block file
         if(!blockBuffer.openFile(fileName, headerSize)){
-            std::cerr << "Failed to open block buffer." << std::endl;    
+            std::cerr << "Failed to open block buffer." << std::endl;   
+            return false;
         }
-        for(size_t i = 1; i < blockCount; ++i){
-            for(const auto& zip : zips){
-                ZipCodeRecord record;
-                if(blockBuffer.readRecordAtRBN(i, zip, blockSize, headerSize, record)){
-                    /*
-                    Need to figure out how to get highest zip code from each block
 
-                    build a block index for block that contains the zip being searched for if not in the index file
-                    */
+        ZipCodeRecord record;
+        IndexEntry entry;
+        ActiveBlock block;
+        RecordBuffer recordBuffer;
+        std::vector<ZipCodeRecord> records;
+        
+        //Logic for writing index file for un indexed block file
+        for(size_t i = 1; i < blockCount; ++i){
+            block = blockBuffer.loadActiveBlockAtRBN(i, blockSize, headerSize);
+            
+            for(const auto& zip : zips){
+                //if current zip "zip" is found in current block "i" and current zip is not in index file
+                if(blockBuffer.readRecordAtRBN(i, zip, blockSize, headerSize, record) && (blockIndexFile.findRBNForKey(zip) != -1)){
+                    //get largest zip code in block and set it to key
+                    recordBuffer.unpackBlock(block.data, records); 
+                    entry.key = records.back().getZipCode();  
+                    //set recordRBN to current block "i"
+                    entry.recordRBN = i;
+                    blockIndexFile.addIndexEntry(entry);
+                    //clears vector
+                    records.clear();
                 }
             }
         }
