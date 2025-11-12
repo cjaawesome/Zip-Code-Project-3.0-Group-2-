@@ -2,6 +2,7 @@
 #define BLOCK_INDEX_FILE_H
 
 #include "stdint.h"
+#include "BlockBuffer.h"
 #include <iostream>
 #include <fstream>
 #include <vector>
@@ -51,6 +52,11 @@ public:
      * @return RBN of block that should contain this zip (or -1 if not found)
      */
     uint32_t findRBNForKey(const uint32_t zipCode) const;
+
+    bool createIndexFromBlockedFile(const std::string& zcbFilePath,
+                                               uint32_t blockSize,
+                                               size_t headerSize,
+                                               uint32_t sequenceSetHead);
 
 private:
     std::vector<IndexEntry> indexEntries; // Vector of index entries

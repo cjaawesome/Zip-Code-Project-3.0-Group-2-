@@ -6,6 +6,7 @@
 #include "../src/PrimaryKeyIndex.h"
 #include "../src/BlockBuffer.h"
 #include "../src/DataManager.h"
+#include "../src/BlockIndexFile.h"
 #include <iostream>
 #include <fstream>
 #include <string>
@@ -199,7 +200,7 @@ bool convertCSVToBlockedSequenceSet(const std::string& csvFile, const std::strin
     header.setSizeFormatType(0);
     header.setBlockSize(blockSize);
     header.setMinBlockSize(minBlockSize);
-    header.setIndexFileName("zipcode_data.idx"); // Placeholder
+    header.setIndexFileName("data/zipcode_data.idx"); // Placeholder
     header.setIndexFileSchemaInfo("Primary Key: Zipcode"); // Placeholder
     header.setRecordCount(allRecords.size()); // This will need to be tracked and updated after if sorting changes
     header.setBlockCount(0); // Update After Conversion
@@ -220,18 +221,23 @@ bool convertCSVToBlockedSequenceSet(const std::string& csvFile, const std::strin
     header.setStaleFlag(0);
 
     std::ofstream out(zcbFile, std::ios::binary);
-    if (!out.is_open()) {
+    if (!out.is_open()) 
+    {
         std::cerr << "Error: Cannot create output file: " << zcbFile << std::endl;
         return false;
     }
-
-    // Correct header serialization (include headerSize itself)
+    
     auto headerData = header.serialize();
-    header.setHeaderSize(static_cast<uint32_t>(headerData.size()));
-    headerData = header.serialize();  // re-serialize so headerSize is embedded
-    out.write(reinterpret_cast<const char*>(headerData.data()), headerData.size());
-    out.flush();
-    out.close();  //  close before BlockBuffer reopens same file
+    header.setHeaderSize(headerData.size());
+    
+    out.write(reinterpret_cast<char*>(headerData.data()), headerData.size());
+    
+    size_t blockCountOffset = 4 + 2 + 4 + 1 + 4 + 2 + 2 + 
+                         header.getIndexFileName().length() + 
+                         2 + header.getIndexFileSchemaInfo().length() + 
+                         sizeof(uint32_t);
+    
+    std::cout << "Converting " << csvFile << " to " << zcbFile << "..." << std::endl;
 
     RecordBuffer recordBuffer;
     BlockBuffer blockBuffer;
@@ -265,7 +271,7 @@ bool convertCSVToBlockedSequenceSet(const std::string& csvFile, const std::strin
             currentBlockRecords.clear();
             currentSize = 10;  // Reset to metadata size
         }
-
+      
         // Add record to current block
         currentBlockRecords.push_back(rec);
         currentSize += rec.getRecordSize() + 4;
@@ -285,45 +291,38 @@ bool convertCSVToBlockedSequenceSet(const std::string& csvFile, const std::strin
         ++blockCount;
     }
 
-    // Calculate offset for blockCount in header
-    std::streamoff blockCountOffset = 0;
-    {
-        // Re-serialize header to find offset of blockCount
-        auto headerData = header.serialize();
-        // Find the offset of blockCount in the header structure
-        // This assumes blockCount is written after recordCount (which is after indexFileSchemaInfo)
-        // You may need to adjust this calculation based on your actual header layout
-        // Here we search for the blockCount value in the serialized header
-        uint32_t dummyBlockCount = 0;
-        auto it = std::search(headerData.begin(), headerData.end(),
-                              reinterpret_cast<const uint8_t*>(&dummyBlockCount),
-                              reinterpret_cast<const uint8_t*>(&dummyBlockCount) + sizeof(uint32_t));
-        if (it != headerData.end()) {
-            blockCountOffset = std::distance(headerData.begin(), it);
-        } else {
-            // Fallback: use a fixed offset if known, or skip updating here
-            blockCountOffset = 0; // Or set to the correct offset manually
-        }
-    }
-
-    std::fstream outUpdate(zcbFile, std::ios::in | std::ios::out | std::ios::binary);
-    if (outUpdate.is_open() && blockCountOffset > 0) {
-        outUpdate.seekp(blockCountOffset);
-        outUpdate.write(reinterpret_cast<char*>(&blockCount), sizeof(uint32_t));
-        outUpdate.close();
-    }
-
-    header.setBlockCount(blockCount);
-    header.setSequenceSetListRBN(1);   // usually 1 (first block RBN)
-    header.setAvailableListRBN(0);          // if no avail yet
-    header.setRecordCount(allRecords.size());
-    HeaderBuffer hb;
-    hb.writeHeader(zcbFile, header);
-
-    // Once index are setup creating the index and setting the stale flag will go here.
+    out.seekp(blockCountOffset);
+    out.write(reinterpret_cast<char*>(&blockCount), sizeof(uint32_t));
 
     csvBuffer.closeFile();
     blockBuffer.closeFile();
+    out.close();
+
+    // Once index are setup creating the index and setting the stale flag will go here.
+
+    BlockIndexFile index;
+    if(index.createIndexFromBlockedFile(zcbFile, blockSize, header.getHeaderSize(), 
+                                        header.getSequenceSetListRBN()))
+    {
+        std::cout << "Index Succesfully Created. Now Writing Index." << std::endl;
+        if(index.write(header.getIndexFileName()))
+        {
+            std::cout << "Index Successfully Written" << std::endl;
+            std::fstream outFile(zcbFile, std::ios::binary | std::ios::in | std::ios::out);
+            uint8_t staleFlag = 0;
+            size_t flagOffset = header.getHeaderSize() - 1;
+            
+            outFile.seekp(flagOffset);
+            outFile.write(reinterpret_cast<char*>(&staleFlag), sizeof(uint8_t));
+            
+            outFile.close();
+        }
+        else
+        {
+            std::cerr << "Error: Failed to write index file" << std::endl;
+            return false;
+        }
+    }
 
     return true;
 }

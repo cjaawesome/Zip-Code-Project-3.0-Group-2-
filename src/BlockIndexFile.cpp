@@ -12,6 +12,49 @@ BlockIndexFile::BlockIndexFile(){
 BlockIndexFile::~BlockIndexFile(){    
 }
 
+bool BlockIndexFile::createIndexFromBlockedFile(const std::string& zcbFilePath,
+                                               uint32_t blockSize,
+                                               size_t headerSize,
+                                               uint32_t sequenceSetHead)
+{
+    indexEntries.clear();  // Clear any existing entries
+    
+    BlockBuffer blockBuffer;
+    RecordBuffer recordBuffer;
+    
+    if (!blockBuffer.openFile(zcbFilePath, headerSize)) {
+        return false;
+    }
+    
+    uint32_t currentRBN = sequenceSetHead;
+    while(currentRBN != 0)
+    {
+        ActiveBlock block = blockBuffer.loadActiveBlockAtRBN(currentRBN, blockSize, headerSize);
+        
+        std::vector<ZipCodeRecord> records;
+        recordBuffer.unpackBlock(block.data, records);
+        
+        if (!records.empty()) {
+            IndexEntry entry;
+            entry.recordRBN = currentRBN;
+            entry.key = records.back().getZipCode();  // Highest zip in block
+            indexEntries.push_back(entry);
+        }
+        
+        currentRBN = block.succeedingRBN;
+    }
+    
+    // Sort by key (should already be sorted if blocks are, but safe)
+    std::sort(indexEntries.begin(), indexEntries.end(),
+        [](const IndexEntry& a, const IndexEntry& b) 
+        {
+            return a.key < b.key;
+        });
+    
+    blockBuffer.closeFile();
+    return true;
+}
+
 void BlockIndexFile::addIndexEntry(const IndexEntry& entry){
     if(indexEntries.empty()){
         indexEntries.push_back(entry);

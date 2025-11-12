@@ -127,6 +127,10 @@ class BlockBuffer
                                   uint32_t availHead, uint32_t blockSize,
                                   size_t headerSize);
 
+        void resetMerge();
+
+        void resetSplit();
+
         /**
          * @brief Get number of records processed
          * @return Number of records processed

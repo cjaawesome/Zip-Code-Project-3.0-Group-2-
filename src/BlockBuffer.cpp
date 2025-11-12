@@ -753,3 +753,13 @@ AvailBlock BlockBuffer::loadAvailBlockAtRBN(const uint32_t rbn, const uint32_t b
     
     return block;
 }
+
+void BlockBuffer::resetMerge()
+{
+    this->mergeOccurred = false;
+}
+
+void BlockBuffer::resetSplit()
+{
+    this->splitOccurred = false;
+}
