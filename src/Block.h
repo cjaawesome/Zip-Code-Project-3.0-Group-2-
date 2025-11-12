@@ -12,7 +12,17 @@ struct ActiveBlock
     std::vector<char> data; // Raw Block Data
     size_t getTotalSize() const 
     {
-        return 10 + data.size();  // Metadata + data
+    // Find first padding byte (0xFF)
+    size_t actualDataSize = data.size();
+        for(size_t i = data.size(); i > 0; --i) 
+        {
+            if(data[i-1] != '\xFF') 
+            {
+                actualDataSize = i;
+                break;
+            }
+        }
+        return 10 + actualDataSize;  // Metadata + actual data (no padding)
     }
 };
 

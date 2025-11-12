@@ -24,6 +24,10 @@ bool RecordBuffer::unpackBlock(const std::vector<char>& blockData, std::vector<Z
     {
         uint32_t lengthPrefix;
         std::memcpy(&lengthPrefix, &blockData[offset], sizeof(uint32_t));
+
+        if(blockData[offset] == '\xFF')
+            break;
+
         offset += 4;
 
         if (lengthPrefix == 0 || offset + lengthPrefix  > blockData.size())

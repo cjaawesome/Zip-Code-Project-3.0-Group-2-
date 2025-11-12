@@ -351,7 +351,7 @@ bool BlockBuffer::writeActiveBlockAtRBN(const uint32_t rbn, const uint32_t block
     size_t bytesWritten = block.getTotalSize();
     if(bytesWritten < blockSize)
     {
-        std::vector<char> padding(blockSize - bytesWritten, 0);
+        std::vector<char> padding(blockSize - bytesWritten, '\xFF');
         blockFile.write(padding.data(), padding.size());
     }
     blockFile.flush();
