@@ -105,8 +105,9 @@ bool ZipSearchApp::add(int argc, char* argv[]){
     }
 
     //**add the zips to the blocked file */
-
+    return true;
 }
+
 
 
 bool ZipSearchApp::remove(int argc, char* argv[]){
@@ -141,22 +142,27 @@ bool ZipSearchApp::remove(int argc, char* argv[]){
     }
 
     //**removes the zips to the blocked file */
-
+    return true;
 }
 
 bool ZipSearchApp::argsParser(int argc, char* argv[], std::string commandArg, std::vector<uint32_t>& zips){
-    for (int i = 1; i < argc; ++i) {
+    bool commandFound = false;
+    for (int i = 0; i < argc; ++i) {
         std::string arg = argv[i];
         if (arg.rfind(commandArg, 0) == 0) {
+            commandFound = true;
+        }
+        else if (commandFound) {
             try {
-                i++;
                 if (arg.rfind(ZIP_ARG, 0) == 0){
                     uint32_t zip = static_cast<uint32_t>(std::stoul(arg.substr(2)));
+                    std::cout << "Parsed zip: " << zip << std::endl;
                     zips.push_back(zip);
                 }
             } catch (...) {
                 std::cerr << "Invalid zip flag: " << arg << std::endl;
             }
+            commandFound = false; // Reset for next command
         }
     }
     return true;
