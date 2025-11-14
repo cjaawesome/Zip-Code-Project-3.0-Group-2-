@@ -15,31 +15,42 @@ RecordBuffer::~RecordBuffer(){
 bool RecordBuffer::unpackBlock(const std::vector<char>& blockData, std::vector<ZipCodeRecord>& records)
 {
     records.clear();
-
     if (blockData.empty()) return false;
 
     size_t offset = 0;
+    int recordNum = 0;
 
     while(offset + 4 <= blockData.size())
     {
         uint32_t lengthPrefix;
         std::memcpy(&lengthPrefix, &blockData[offset], sizeof(uint32_t));
+        
+        if (blockData[offset] == '\xFF') 
+        {
+            //std::cout << "  Hit padding at offset " << offset << "\n";
+            break;
+        }
+        
         offset += 4;
 
-        if (lengthPrefix == 0 || offset + lengthPrefix  > blockData.size())
+        if (lengthPrefix == 0 || offset + lengthPrefix > blockData.size())
+        {
+            std::cout << "  Breaking: invalid length or overflow\n";
             break;
+        }
 
         std::string recordStr(blockData.begin() + offset, blockData.begin() + offset + lengthPrefix);
-
         offset += lengthPrefix;
         
         ZipCodeRecord record;
-        if(!parseZipCodeRecord(recordStr, record))
+        if(!parseZipCodeRecord(recordStr, record)) 
         {
+            std::cout << "  Parse failed!\n";
             setError("Error Parsing ZipCodeRecord within Unpack Block. Block Skipped.");
             return false;
         }
         records.push_back(record);
+        recordNum++;
     }
     return true;
 }
@@ -49,11 +60,23 @@ bool RecordBuffer::packBlock(const std::vector<ZipCodeRecord>& records, std::vec
     blockData.clear();
     if (records.empty()) return false;
 
-    uint32_t lengthPrefix;
     blockData.reserve(blockSize);
     for(const auto& record : records)
     {
-        lengthPrefix = record.getRecordSize();
+        size_t oldSize = blockData.size();
+        blockData.resize(oldSize + sizeof(uint32_t));
+
+        std::string recordStr = std::to_string(record.getZipCode()) + "," +
+                               record.getLocationName() + "," +
+                               std::string(record.getState()) + "," +
+                               record.getCounty() + "," +
+                               std::to_string(record.getLatitude()) + "," +
+                               std::to_string(record.getLongitude());
+
+        uint32_t lengthPrefix = recordStr.length();
+
+        std::memcpy(&blockData[oldSize], &lengthPrefix, sizeof(uint32_t));
+        blockData.insert(blockData.end(), recordStr.begin(), recordStr.end());
 
         size_t totalBlockSize = sizeof(uint16_t) + sizeof(uint32_t) + sizeof(uint32_t) + 
                                 sizeof(uint32_t) + blockData.size() + lengthPrefix;            
@@ -63,19 +86,6 @@ bool RecordBuffer::packBlock(const std::vector<ZipCodeRecord>& records, std::vec
            setError("Block size exceeded during packing");
            return false;
         }
-        
-        size_t oldSize = blockData.size();
-        blockData.resize(oldSize + sizeof(uint32_t));
-        std::memcpy(&blockData[oldSize], &lengthPrefix, sizeof(uint32_t));
-
-        std::string recordStr = std::to_string(record.getZipCode()) + "," +
-                               record.getLocationName() + "," +
-                               std::string(record.getState()) + "," +
-                               record.getCounty() + "," +
-                               std::to_string(record.getLatitude()) + "," +
-                               std::to_string(record.getLongitude());
-
-        blockData.insert(blockData.end(), recordStr.begin(), recordStr.end());
     }
     return true;
 }

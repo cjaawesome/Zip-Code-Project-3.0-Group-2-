@@ -12,6 +12,7 @@ BlockBuffer::BlockBuffer()
 BlockBuffer::~BlockBuffer()
 {
     if (blockFile.is_open()) blockFile.close();
+    std::cout << getLastError() << std::endl;
 }
 
 bool BlockBuffer::openFile(const std::string& filename, const size_t headerSize){
@@ -309,8 +310,14 @@ bool BlockBuffer::addRecord(const uint32_t rbn, const uint32_t blockSize, uint32
             writeActiveBlockAtRBN(newRBN, blockSize, headerSize, splitBlock));
 }
 
-bool BlockBuffer::getMergeOccurred() const{
+bool BlockBuffer::getMergeOccurred() const
+{
     return mergeOccurred;
+}
+
+bool BlockBuffer::getSplitOccurred() const
+{
+    return splitOccurred;
 }
 
 bool BlockBuffer::writeActiveBlockAtRBN(const uint32_t rbn, const uint32_t blockSize, const size_t headerSize, const ActiveBlock& block)
@@ -339,7 +346,7 @@ bool BlockBuffer::writeActiveBlockAtRBN(const uint32_t rbn, const uint32_t block
     size_t bytesWritten = block.getTotalSize();
     if(bytesWritten < blockSize)
     {
-        std::vector<char> padding(blockSize - bytesWritten, 0);
+        std::vector<char> padding(blockSize - bytesWritten, '\xFF');
         blockFile.write(padding.data(), padding.size());
     }
     return blockFile.good();
@@ -488,6 +495,7 @@ ActiveBlock BlockBuffer::loadActiveBlockAtRBN(const uint32_t rbn, const uint32_t
     }
 
     std::streampos offset = headerSize + static_cast<std::streampos>(rbn) * blockSize; //calculate offset of block
+    //std::streampos offset = headerSize + static_cast<std::streampos>(rbn - 1) * blockSize;
     blockFile.seekg(offset); //seek block position
 
     if (!blockFile.good()) 
@@ -524,9 +532,12 @@ ActiveBlock BlockBuffer::loadActiveBlockAtRBN(const uint32_t rbn, const uint32_t
     offsetIdx += sizeof(block.succeedingRBN); //reads in succeeding RBN and adds to offset
 
     // Store the remaining bytes as the payload/data portion of the block
+
     if (static_cast<size_t>(bytesRead) > offsetIdx) 
     {
-        block.data.assign(raw.begin() + offsetIdx, raw.begin() + bytesRead);
+        size_t dataSize = bytesRead - offsetIdx;  // This is ~1014 bytes
+        block.data.resize(dataSize);
+        memcpy(block.data.data(), raw.data() + offsetIdx, dataSize);   
     } 
     else 
     {
@@ -691,4 +702,14 @@ AvailBlock BlockBuffer::loadAvailBlockAtRBN(const uint32_t rbn, const uint32_t b
     }
     
     return block;
+}
+
+void BlockBuffer::resetMerge()
+{
+    this->mergeOccurred = false;
+}
+
+void BlockBuffer::resetSplit()
+{
+    this->splitOccurred = false;
 }

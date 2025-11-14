@@ -67,6 +67,7 @@
         "set": "cpp",
         "span": "cpp",
         "xlocbuf": "cpp",
-        "xlocmes": "cpp"
+        "xlocmes": "cpp",
+        "unordered_set": "cpp"
     }
 }

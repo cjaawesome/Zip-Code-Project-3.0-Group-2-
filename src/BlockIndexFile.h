@@ -2,6 +2,7 @@
 #define BLOCK_INDEX_FILE_H
 
 #include "stdint.h"
+#include "BlockBuffer.h"
 #include <iostream>
 #include <fstream>
 #include <vector>
@@ -46,6 +47,11 @@ public:
      * @returns true if read was successful, false otherwise
      */
     bool read(const std::string& filename);
+
+    bool createIndexFromBlockedFile(const std::string& zcbFilePath,
+                                               uint32_t blockSize,
+                                               size_t headerSize,
+                                               uint32_t sequenceSetHead);
 
     /**
      * @brief Find RBN for block containing the given zip code

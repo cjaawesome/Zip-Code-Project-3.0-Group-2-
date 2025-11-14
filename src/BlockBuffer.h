@@ -94,6 +94,8 @@ class BlockBuffer
          */
         bool getMergeOccurred() const;
 
+        bool getSplitOccurred() const;
+
         /**
          * @brief Get description of last error
          * @return Error message string reference
@@ -126,6 +128,10 @@ class BlockBuffer
         void dumpLogicalOrder(std::ostream& out, uint32_t sequenceSetHead,
                                   uint32_t availHead, uint32_t blockSize,
                                   size_t headerSize);
+
+        void resetMerge();
+
+        void resetSplit();
 
         /**
          * @brief Get number of records processed
