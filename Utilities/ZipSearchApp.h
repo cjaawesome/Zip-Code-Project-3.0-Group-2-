@@ -60,6 +60,6 @@ private:
      * @param zip the zip code to remove
      * @return true if the zip code was removed successfully, false otherwise
      */
-    bool remove(uint32_t zip);
+    bool remove(uint32_t zip, HeaderRecord& header);
 };
 #endif

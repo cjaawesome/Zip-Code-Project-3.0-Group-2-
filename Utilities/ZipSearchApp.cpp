@@ -38,6 +38,7 @@ bool ZipSearchApp::process(int argc, char* argv[]){
     std::vector<uint32_t> addZips;
     std::vector<uint32_t> removeZips;
 
+    //**parses command line arguments*/
     bool commandFound = false;
     std::string currentCommand = "";
     for (int i = 0; i < argc; ++i) {
@@ -75,6 +76,7 @@ bool ZipSearchApp::process(int argc, char* argv[]){
         }
     }
 
+    //** read header */
     HeaderRecord header;
     HeaderBuffer headerBuffer;
     if (!headerBuffer.readHeader(fileName, header)) {
@@ -82,6 +84,7 @@ bool ZipSearchApp::process(int argc, char* argv[]){
         return false;
     }
     
+    //** create index file if stale, otherwise read it */
     if(!indexHandler(header)){ 
         return false;
     }
@@ -90,6 +93,7 @@ bool ZipSearchApp::process(int argc, char* argv[]){
     const uint32_t headerSize = header.getHeaderSize();
     const uint32_t blockSize = header.getBlockSize();
 
+    //**searches for a zip code in the blocked file */
     if(searchZips.empty()){
         std::cout << "No zip codes provided for search." << std::endl;
     }
@@ -97,7 +101,7 @@ bool ZipSearchApp::process(int argc, char* argv[]){
         for(auto& zip : searchZips){
             ZipCodeRecord outRecord;
             if(!search(zip, blockSize, headerSize, outRecord)){
-                std::cerr << "Failed to search for zip code: " << zip << std::endl;
+                std::cout << "Zip code " << zip << " not found in block." << std::endl;
                 continue;
             }
             std::cout << "Found: " << outRecord.getLocationName() << ", " 
@@ -105,6 +109,7 @@ bool ZipSearchApp::process(int argc, char* argv[]){
         }
     }
 
+    //**add the zips to the blocked file */
     if(addZips.empty()){
         std::cout << "No zip codes provided for addition." << std::endl;
     }
@@ -118,12 +123,13 @@ bool ZipSearchApp::process(int argc, char* argv[]){
         }
     }
 
+    //**removes the zips to the blocked file */
     if(removeZips.empty()){
         std::cout << "No zip codes provided for removal." << std::endl;
     }
     else{
         for(auto& zip : removeZips){
-            if(!remove(zip)){
+            if(!remove(zip, header)){
                 std::cerr << "Failed to remove zip code: " << zip << std::endl;
                 continue;
             }
@@ -138,19 +144,20 @@ bool ZipSearchApp::process(int argc, char* argv[]){
 
 
 bool ZipSearchApp::search(uint32_t zip, uint32_t blockSize, uint32_t headerSize, ZipCodeRecord& outRecord){
+    //**searches for a zip code in the blocked file */
     uint32_t rbn = blockIndexFile.findRBNForKey(zip);
     if (rbn == static_cast<uint32_t>(-1)) {
         std::cout << "Zip code " << zip << " not found." << std::endl;
         return false;
     }
 
+    //**searches for a zip code in the blocked file */
     BlockBuffer blockBuffer;
     ZipCodeRecord record;
     if (blockBuffer.openFile(fileName, headerSize) && 
         blockBuffer.readRecordAtRBN(rbn, zip, blockSize, headerSize, record)) {
         outRecord = record;
     } else {
-        std::cout << "Zip code " << zip << " not found in block." << std::endl;
         return false;
     }
     return true;
@@ -158,18 +165,29 @@ bool ZipSearchApp::search(uint32_t zip, uint32_t blockSize, uint32_t headerSize,
 
 bool ZipSearchApp::add(uint32_t zip){
     
-    
     //**adds the zips to the blocked file */
+
+    //talk to group about how to add zip codes to the blocked file
 
     return true;
 }
 
 
 
-bool ZipSearchApp::remove(uint32_t zip){
+bool ZipSearchApp::remove(uint32_t zip, HeaderRecord& header){
     
+    //**checks if the zip code exists in the blocked file */
+    ZipCodeRecord record;
+    uint32_t blockSize = header.getBlockSize();
+    uint32_t headerSize = header.getHeaderSize();
+    if (!search(zip, blockSize, headerSize, record)) {
+        return false;
+    }
+
     //**removes the zips to the blocked file */
     
+    //go to remove test to see the process
+
     return true;
 }
 
