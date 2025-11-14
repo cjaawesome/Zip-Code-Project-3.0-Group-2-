@@ -63,7 +63,7 @@ void BlockIndexFile::addIndexEntry(const IndexEntry& entry){
     }
 
     for(int i = 0; i < indexEntries.size(); i++){
-        if(indexEntries[i].key < entry.key){
+        if(indexEntries[i].key > entry.key){
             indexEntries.insert(indexEntries.begin() + i, entry);
             return;
         }

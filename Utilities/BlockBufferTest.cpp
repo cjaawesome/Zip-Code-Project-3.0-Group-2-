@@ -13,9 +13,9 @@
 #include "../src/ZipCodeRecord.h"
 #include "../src/CSVBuffer.h"
 
-const std::string FILE_PATH_IN = "../data/PT2_Randomized.csv";
-const std::string FILE_PATH_OUT = "../data/PT2_Randomized.zcd";
-const std::string& FILE_PATH_INDEX = "../data/PT2_Randomized.idx";
+const std::string FILE_PATH_IN = "data/PT2_Randomized.csv";
+const std::string FILE_PATH_OUT = "PT2_Randomized.zcb";
+const std::string& FILE_PATH_INDEX = "PT2_Randomized.idx";
 
 //from ZCDUtility.cpp
 bool convertCSVToBlockedSequenceSet(const std::string& csvFile, const std::string& zcbFile, const std::string& indexFile, 
@@ -53,7 +53,7 @@ bool convertCSVToBlockedSequenceSet(const std::string& csvFile, const std::strin
     header.setSizeFormatType(0);
     header.setBlockSize(blockSize);
     header.setMinBlockSize(minBlockSize);
-    header.setIndexFileName("zipcode_data.idx"); // Placeholder
+    header.setIndexFileName(FILE_PATH_INDEX); // Placeholder
     header.setIndexFileSchemaInfo("Primary Key: Zipcode"); // Placeholder
     header.setRecordCount(allRecords.size()); // This will need to be tracked and updated after if sorting changes
     header.setBlockCount(0); // Update After Conversion
@@ -114,7 +114,6 @@ bool convertCSVToBlockedSequenceSet(const std::string& csvFile, const std::strin
         {
             // Write current block
             ActiveBlock block;
-            IndexEntry entry;
             block.precedingRBN = (currentRBN == 1) ? 0 : currentRBN - 1;
             block.succeedingRBN = currentRBN + 1;  // Temp - will fix last block later
             block.recordCount = static_cast<uint16_t>(currentBlockRecords.size());
@@ -122,21 +121,12 @@ bool convertCSVToBlockedSequenceSet(const std::string& csvFile, const std::strin
             recordBuffer.packBlock(currentBlockRecords, block.data, blockSize);
             blockBuffer.writeActiveBlockAtRBN(currentRBN, blockSize, header.getHeaderSize(), block);
 
-            entry.key = currentBlockRecords.front().getZipCode();
-            entry.recordRBN = currentRBN;
-            entry.previousRBN = block.precedingRBN;
-            entry.nextRBN = block.succeedingRBN;
-            
-            blockIndexFile.addIndexEntry(entry);
-
             ++blockCount;
             ++currentRBN;
             currentBlockRecords.clear();
             currentSize = 10;  // Reset to metadata size
         }
 
-        //write index file
-        blockIndexFile.write(indexFile);
 
         // Add record to current block
         currentBlockRecords.push_back(rec);
@@ -159,11 +149,14 @@ bool convertCSVToBlockedSequenceSet(const std::string& csvFile, const std::strin
 
     out.seekp(blockCountOffset);
     out.write(reinterpret_cast<char*>(&blockCount), sizeof(uint32_t));
+    
 
     // Once index are setup creating the index and setting the stale flag will go here.
 
     csvBuffer.closeFile();
     blockBuffer.closeFile();
+    blockIndexFile.createIndexFromBlockedFile(zcbFile, blockSize, header.getHeaderSize(), 1);
+    blockIndexFile.write(indexFile);
 
     return true;
 }
