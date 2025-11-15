@@ -185,9 +185,66 @@ bool ZipSearchApp::remove(uint32_t zip, HeaderRecord& header){
     }
 
     //**removes the zips to the blocked file */
-    
-    //go to remove test to see the process
 
+    BlockBuffer blockBuffer;
+    RecordBuffer recordBuffer;
+    blockBuffer.openFile(fileName, headerSize);
+
+
+    blockBuffer.resetMerge();
+    uint32_t rbn = blockIndexFile.findRBNForKey(zip);
+    std::cout << "Trying to remove ZIP " << zip << " at RBN: " << rbn << "... " << std::endl;
+        
+    // Load and inspect the block BEFORE removal
+    ActiveBlock blockBefore = blockBuffer.loadActiveBlockAtRBN(rbn, header.getBlockSize(), header.getHeaderSize());
+    std::vector<ZipCodeRecord> recordsBefore;
+    recordBuffer.unpackBlock(blockBefore.data, recordsBefore);
+        
+    std::cout << "  Block BEFORE removal:\n";
+    std::cout << "    Record count: " << recordsBefore.size() << "\n";
+    std::cout << "    Block total size: " << blockBefore.getTotalSize() << " / " << header.getBlockSize() << "\n";
+    std::cout << "    Utilization: " << (blockBefore.getTotalSize() * 100.0 / header.getBlockSize()) << "%\n";
+        
+    // Find the record we're about to remove and show its size
+    auto it = std::find_if(recordsBefore.begin(), recordsBefore.end(),
+                          [zip](const ZipCodeRecord& rec) { return rec.getZipCode() == zip; });
+    if(it != recordsBefore.end()) {
+        std::cout << "    Record to remove size: " << it->getRecordSize() << " bytes\n";
+        std::cout << "    Predicted size after removal: " << (blockBefore.getTotalSize() - it->getRecordSize() - 4) << " bytes\n";
+        std::cout << "    Min block size threshold: " << header.getMinBlockSize() << " bytes\n";
+    }
+        
+    uint32_t availListRBN = header.getAvailableListRBN();
+    if(blockBuffer.removeRecordAtRBN(rbn, header.getMinBlockSize(), availListRBN,
+                                        zip, header.getBlockSize(), header.getHeaderSize()))
+    {
+        std::cout << "SUCCESS" << std::endl;
+        if(blockBuffer.getMergeOccurred()) 
+        {
+            std::cout << "  TRUE MERGE occurred (block deleted)\n";
+            
+            // Check adjacent block sizes
+            if(blockBefore.precedingRBN != 0) {
+                ActiveBlock prec = blockBuffer.loadActiveBlockAtRBN(blockBefore.precedingRBN, header.getBlockSize(), header.getHeaderSize());
+                std::cout << "    Preceding block (RBN " << blockBefore.precedingRBN << ") size was: " << prec.getTotalSize() << "\n";
+            }
+            if(blockBefore.succeedingRBN != 0) {
+                ActiveBlock succ = blockBuffer.loadActiveBlockAtRBN(blockBefore.succeedingRBN, header.getBlockSize(), header.getHeaderSize());
+                std::cout << "    Succeeding block (RBN " << blockBefore.succeedingRBN << ") size was: " << succ.getTotalSize() << "\n";
+            }
+        }
+      }
+    else
+    {
+         std::cout << "FAILED" << std::endl;
+    }
+        
+    if(availListRBN != header.getAvailableListRBN()) 
+    {
+        std::cout << "  Avail list updated: " << header.getAvailableListRBN() << " -> " << availListRBN << "\n";
+        header.setAvailableListRBN(availListRBN);
+    }
+    std::cout << "\n";
     return true;
 }
 
