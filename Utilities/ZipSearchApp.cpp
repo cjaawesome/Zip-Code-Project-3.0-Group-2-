@@ -15,8 +15,14 @@
 const std::string ADD_ARG = "-A";
 const std::string REMOVE_ARG = "-R";
 const std::string SEARCH_ARG = "-S";
-const std::string ZIP_ARG = "-Z";
 
+
+// uint32_t zipCode; // 5-digit zip code
+// std::string locationName; // Town name
+// std::string county; // County name
+// char state[3]; // Two-character state code + null terminator
+// double latitude; // Latitude coordinate
+// double longitude; // Longitude coordinate  
 
 ZipSearchApp::ZipSearchApp(){
 
@@ -35,44 +41,37 @@ bool ZipSearchApp::process(int argc, char* argv[]){
     if (argc <= 1) return false;
 
     std::vector<uint32_t> searchZips;
-    std::vector<uint32_t> addZips;
+    std::vector<ZipCodeRecord> addZips;
     std::vector<uint32_t> removeZips;
 
     //**parses command line arguments*/
-    bool commandFound = false;
-    std::string currentCommand = "";
+    // Search: -S 12345
+    // Remove: -R 12345
+    // Add: -A 12345 LocationName ST CountyName 40.7128 -74.0060
+    
     for (int i = 0; i < argc; ++i) {
-        std::string arg = argv[i];
-        if (arg.rfind(ADD_ARG, 0) == 0) {
-            commandFound = true;
-            currentCommand = ADD_ARG;
-        }
-        else if (arg.rfind(REMOVE_ARG, 0) == 0) {
-            commandFound = true;
-            currentCommand = REMOVE_ARG;
-        }
-        else if (arg.rfind(SEARCH_ARG, 0) == 0) {
-            commandFound = true;
-            currentCommand = SEARCH_ARG;
-        }
-        else if (commandFound) {
-            try {
-                if (arg.rfind(ZIP_ARG, 0) == 0){
-                    uint32_t zip = static_cast<uint32_t>(std::stoul(arg.substr(2)));
-                    if(currentCommand == ADD_ARG)
-                        addZips.push_back(zip);
-                    else if(currentCommand == REMOVE_ARG)
-                        removeZips.push_back(zip);
-                    else if(currentCommand == SEARCH_ARG)
-                        searchZips.push_back(zip);
-                }
-            } catch (...) {
-                std::cerr << "Invalid zip flag: " << arg << std::endl;
+        try {
+            if(argv[i] == ADD_ARG){
+                uint32_t zip = std::stoul(argv[++i]);
+                std::string locationName = argv[++i];
+                std::string state = argv[++i];
+                std::string county = argv[++i];
+                double latitude = std::stod(argv[++i]);
+                double longitude = std::stod(argv[++i]);
+                addZips.emplace_back(zip, latitude, longitude, locationName, state, county);
             }
-            commandFound = false; // Reset for next command
+            else if(argv[i] == SEARCH_ARG){
+                uint32_t zip = std::stoul(argv[++i]);
+                searchZips.push_back(zip);
+            }
+            else if(argv[i] == REMOVE_ARG){
+                uint32_t zip = std::stoul(argv[++i]);
+                removeZips.push_back(zip);
+            }
         }
-        else {
-            std::cerr << "Unknown argument: " << arg << std::endl;
+        catch (const std::exception& e) {
+            std::cerr << "Error parsing arguments: " << e.what() << std::endl;
+            return false;
         }
     }
 
@@ -115,7 +114,7 @@ bool ZipSearchApp::process(int argc, char* argv[]){
     }
     else{
         for(auto& zip : addZips){
-            if(!add(zip)){
+            if(!add(zip, header)){
                 std::cerr << "Failed to add zip code: " << zip << std::endl;
                 continue;
             }
@@ -163,12 +162,20 @@ bool ZipSearchApp::search(uint32_t zip, uint32_t blockSize, uint32_t headerSize,
     return true;
 }
 
-bool ZipSearchApp::add(uint32_t zip){
+bool ZipSearchApp::add(const ZipCodeRecord zip, HeaderRecord& header){
+    BlockBuffer blockBuffer;
+
+    uint32_t blockCount = header.getBlockCount();
+    uint32_t availListRBN = header.getAvailableListRBN();
+
+    blockBuffer.resetSplit();
+    uint32_t rbn = blockIndexFile.findRBNForKey(zip.getZipCode());
     
-    //**adds the zips to the blocked file */
-
-    //talk to group about how to add zip codes to the blocked file
-
+    if(!blockBuffer.addRecord(rbn, header.getBlockSize(), availListRBN, zip, 
+                            header.getHeaderSize(), blockCount))
+    {
+        return false;
+    }
     return true;
 }
 
@@ -193,58 +200,43 @@ bool ZipSearchApp::remove(uint32_t zip, HeaderRecord& header){
 
     blockBuffer.resetMerge();
     uint32_t rbn = blockIndexFile.findRBNForKey(zip);
-    std::cout << "Trying to remove ZIP " << zip << " at RBN: " << rbn << "... " << std::endl;
         
     // Load and inspect the block BEFORE removal
     ActiveBlock blockBefore = blockBuffer.loadActiveBlockAtRBN(rbn, header.getBlockSize(), header.getHeaderSize());
     std::vector<ZipCodeRecord> recordsBefore;
     recordBuffer.unpackBlock(blockBefore.data, recordsBefore);
         
-    std::cout << "  Block BEFORE removal:\n";
-    std::cout << "    Record count: " << recordsBefore.size() << "\n";
-    std::cout << "    Block total size: " << blockBefore.getTotalSize() << " / " << header.getBlockSize() << "\n";
-    std::cout << "    Utilization: " << (blockBefore.getTotalSize() * 100.0 / header.getBlockSize()) << "%\n";
-        
     // Find the record we're about to remove and show its size
     auto it = std::find_if(recordsBefore.begin(), recordsBefore.end(),
                           [zip](const ZipCodeRecord& rec) { return rec.getZipCode() == zip; });
-    if(it != recordsBefore.end()) {
-        std::cout << "    Record to remove size: " << it->getRecordSize() << " bytes\n";
-        std::cout << "    Predicted size after removal: " << (blockBefore.getTotalSize() - it->getRecordSize() - 4) << " bytes\n";
-        std::cout << "    Min block size threshold: " << header.getMinBlockSize() << " bytes\n";
-    }
+    
         
     uint32_t availListRBN = header.getAvailableListRBN();
     if(blockBuffer.removeRecordAtRBN(rbn, header.getMinBlockSize(), availListRBN,
                                         zip, header.getBlockSize(), header.getHeaderSize()))
     {
-        std::cout << "SUCCESS" << std::endl;
         if(blockBuffer.getMergeOccurred()) 
         {
-            std::cout << "  TRUE MERGE occurred (block deleted)\n";
             
             // Check adjacent block sizes
             if(blockBefore.precedingRBN != 0) {
                 ActiveBlock prec = blockBuffer.loadActiveBlockAtRBN(blockBefore.precedingRBN, header.getBlockSize(), header.getHeaderSize());
-                std::cout << "    Preceding block (RBN " << blockBefore.precedingRBN << ") size was: " << prec.getTotalSize() << "\n";
             }
             if(blockBefore.succeedingRBN != 0) {
                 ActiveBlock succ = blockBuffer.loadActiveBlockAtRBN(blockBefore.succeedingRBN, header.getBlockSize(), header.getHeaderSize());
-                std::cout << "    Succeeding block (RBN " << blockBefore.succeedingRBN << ") size was: " << succ.getTotalSize() << "\n";
             }
         }
       }
     else
     {
-         std::cout << "FAILED" << std::endl;
+         return false;
     }
         
     if(availListRBN != header.getAvailableListRBN()) 
     {
-        std::cout << "  Avail list updated: " << header.getAvailableListRBN() << " -> " << availListRBN << "\n";
         header.setAvailableListRBN(availListRBN);
     }
-    std::cout << "\n";
+
     return true;
 }
 

@@ -53,7 +53,7 @@ private:
      * @param zip the zip code to add
      * @return true if the zip code was added successfully, false otherwise
      */
-    bool add(uint32_t zip);
+    bool add(const ZipCodeRecord zip, HeaderRecord& header);
 
     /**
      * @brief removes a zip code from the blocked file
