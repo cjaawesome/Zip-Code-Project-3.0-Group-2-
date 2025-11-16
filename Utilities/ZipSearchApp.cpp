@@ -164,7 +164,11 @@ bool ZipSearchApp::search(uint32_t zip, uint32_t blockSize, uint32_t headerSize,
 
 bool ZipSearchApp::add(const ZipCodeRecord zip, HeaderRecord& header){
     BlockBuffer blockBuffer;
-
+    if(!blockBuffer.openFile(fileName, header.getHeaderSize()))
+    {
+        std::cerr << "Failed to open block buffer\n";
+        return 1;
+    }
     uint32_t blockCount = header.getBlockCount();
     uint32_t availListRBN = header.getAvailableListRBN();
 
