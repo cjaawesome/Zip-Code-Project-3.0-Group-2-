@@ -73,17 +73,27 @@ class BlockBuffer
         /**
          * @brief Attempts to remove a ZipCodeRecord from a block at a specific RBN
          * @details Finds the correct block by RBN and removes the record if found
-         * @param rbn The RBN of the record to remove
+         * @param rbn The block number that the ZipCode should be present in.
+         * @param blockSize The size of the each block in bytes.
+         * @param availListRBN The head of the current AvailList.
+         * @param zipCode The ZipCode that should be removed.
+         * @param headerSize The size of the file header in bytes.
+         * @param blockCount The number of blocks contained within the file.
          * @return True if the record was found and removed successfully
          */
         bool removeRecordAtRBN(const uint32_t rbn, const uint16_t minBlockSize, uint32_t& availListRBN, 
                                 const uint32_t zipCode, const uint32_t blockSize, const size_t headerSize);
 
         /**
-         * @brief Attempts to add a ZipCodeRecord to the active blocks
-         * @details If there is no space in existing blocks, a new block is created. Finds correct block by key order
-         * @param record The ZipCodeRecord to add
-         * @return True if the record was added successfully
+         * @brief Attempts to add a ZipCodeRecord to the active blocks.
+         * @details If there is no space in existing blocks, a new block is created. Finds correct block by key order.
+         * @param rbn The block number that the new zip code will try to be placed in.
+         * @param blockSize The size of the each block in bytes.
+         * @param availListRBN The head of the current AvailList.
+         * @param record The ZipCodeRecord to add.
+         * @param headerSize The size of the file header in bytes.
+         * @param blockCount The number of blocks contained within the file.
+         * @return True if the record was added successfully.
          */
         bool addRecord(const uint32_t rbn, const uint32_t blockSize, uint32_t& availListRBN, 
                         const ZipCodeRecord& record, const size_t headerSize, uint32_t& blockCount);
@@ -114,8 +124,13 @@ class BlockBuffer
         void closeFile();
 
         /**
-         * @brief Dumps the physical order of blocks in the file to standard output
-         * @param out [IN] Output stream to write to
+         * @brief Dumps the physical order of blocks in the file to standard output.
+         * @param out [IN] Output stream to write to.
+         * @param sequenceSetHead The head of the ActiveBlock list.
+         * @param availHead The head of the AvailBlock list.
+         * @param blockCount The number of blocks contained within the file.
+         * @param blockSize The size in bytes that each block uses.
+         * @param headerSize The total size of the file header.
          */
        void dumpPhysicalOrder(std::ostream& out, uint32_t sequenceSetHead,
                                    uint32_t availHead, uint32_t blockCount,
@@ -124,13 +139,23 @@ class BlockBuffer
         /**
          * @brief Dumps the logical order of active blocks in the file to standard output
          * @param out [IN] Output stream to write to
+         * @param sequenceSetHead The head of the ActiveBlock list.
+         * @param availHead The head of the AvailBlock list.
+         * @param blockSize The size in bytes that each block uses.
+         * @param headerSize The total size of the file header.
          */
         void dumpLogicalOrder(std::ostream& out, uint32_t sequenceSetHead,
                                   uint32_t availHead, uint32_t blockSize,
                                   size_t headerSize);
 
+        /**
+         * @brief Resets the mergeOccurred member variable.
+         */
         void resetMerge();
 
+        /**
+         * @brief Reset the splitOccurred member variable.
+         */
         void resetSplit();
 
         /**
