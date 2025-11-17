@@ -146,8 +146,9 @@ bool BlockBuffer::removeRecordAtRBN(const uint32_t rbn, const uint16_t minBlockS
                 totalSize += rec.getRecordSize() + 4;
             }
 
-            if(totalSize <= blockSize) {
-                // Full merge - move all from succeeding to current, free succeeding
+            if(totalSize <= blockSize) 
+            {
+                // Full merge
                 records.insert(records.end(), succeedingRecords.begin(), succeedingRecords.end());
                 std::sort(records.begin(), records.end(),
                     [](const ZipCodeRecord& a, const ZipCodeRecord& b) 
@@ -180,8 +181,7 @@ bool BlockBuffer::removeRecordAtRBN(const uint32_t rbn, const uint16_t minBlockS
                 return true;
             }
         }
-
-        // Couldn't borrow or merge - write underfull block
+        // Couldn't borrow or merge write underfull block
         return writeActiveBlockAtRBN(rbn, blockSize, headerSize, block);
     }
     else // Block is still acceptable size after removal

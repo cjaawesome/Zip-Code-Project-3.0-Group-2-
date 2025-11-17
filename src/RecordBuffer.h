@@ -36,6 +36,7 @@ public:
      * @brief Pack ZipCodeRecords into block data
      * @param records [IN] Vector of ZipCodeRecords to pack
      * @param blockData [OUT] Vector to populate with packed block data
+     * @param blockSize The constant size of the blocks in the file in bytes.
      * @return True if packing was successful
      */
     bool packBlock(const std::vector<ZipCodeRecord>& records, std::vector<char>& blockData, const uint32_t blockSize);

@@ -72,9 +72,14 @@ public:
 
     /**
      * @brief Convenience: process length-indicated file, return signature.
+     * @return The signature of the length-indicated file.
      */
     static std::string signatureFromLengthIndicated(const std::string& zcdPath);
 
+    /**
+     * @brief Convenience: process blocked file, return signature.
+     * @return The signature of the blocked file.
+     */
     static std::string signatureFromBlockedSequence(const std::string& zcbPath);
 
     /**
@@ -87,7 +92,7 @@ public:
                                         const uint8_t fileBType);
 
 private:
-    std::unordered_map<std::string, Extremes> stateExtremes_;
+    std::unordered_map<std::string, Extremes> stateExtremes_; // Map containing the most extreme zips in each state.
     
     /**
      * @brief Process a single record into the extremes map

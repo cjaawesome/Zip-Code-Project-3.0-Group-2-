@@ -99,27 +99,31 @@ class BlockBuffer
                         const ZipCodeRecord& record, const size_t headerSize, uint32_t& blockCount);
 
         /**
-         * @brief Checks if a merge occurred during the last add operation
+         * @brief Checks if a merge occurred during the last remove operation
          * @return True if a merge occurred
          */
         bool getMergeOccurred() const;
 
+        /**
+         * @brief Checks if a split occurred during the last add operation.
+         * @return True if a split occurred.
+         */
         bool getSplitOccurred() const;
 
         /**
-         * @brief Get description of last error
-         * @return Error message string reference
+         * @brief Get description of last error.
+         * @return Error message string reference.
          */
         const std::string& getLastError() const;
 
         /**
-         * @brief getter for memory offset
-         * @return memory offset
+         * @brief getter for memory offset.
+         * @return memory offset.
          */
         size_t getMemoryOffset();
 
         /**
-         * @brief Close the currently opened file
+         * @brief Close the currently opened file.
          */
         void closeFile();
 
@@ -138,7 +142,7 @@ class BlockBuffer
 
         /**
          * @brief Dumps the logical order of active blocks in the file to standard output
-         * @param out [IN] Output stream to write to
+         * @param out [IN] Output stream to write to.
          * @param sequenceSetHead The head of the ActiveBlock list.
          * @param availHead The head of the AvailBlock list.
          * @param blockSize The size in bytes that each block uses.

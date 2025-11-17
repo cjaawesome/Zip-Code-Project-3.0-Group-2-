@@ -48,6 +48,13 @@ public:
      */
     bool read(const std::string& filename);
 
+    /**
+     * @brief Creates an Index file from a block formatted Zip Code file.
+     * @param zcbFilePath The file path to the .zcb blocked file.
+     * @param blockSize The size of the blocks within the file in bytes.
+     * @param headerSize The size of the file header in bytes.
+     * @param sequenceSetHead The head of the ActiveBlock linked list.
+     */
     bool createIndexFromBlockedFile(const std::string& zcbFilePath,
                                                uint32_t blockSize,
                                                size_t headerSize,

@@ -62,8 +62,8 @@ public:
     std::string getLastError() const;
     
 private:
-    bool errorState;
-    std::string lastError;
+    bool errorState; // Represents if an error has occurred.
+    std::string lastError; // Contains the last error message that occurred.
     
     /**
      * @brief set Error
