@@ -37,6 +37,7 @@ public:
 private:
     std::string fileName;
     BlockIndexFile blockIndexFile;
+    bool fileLoaded = false;
 
 
     bool indexHandler(const HeaderRecord& header);

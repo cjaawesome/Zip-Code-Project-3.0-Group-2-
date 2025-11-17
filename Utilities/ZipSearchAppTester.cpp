@@ -20,6 +20,6 @@
 
 
 int main(int argc, char* argv[]){
-    ZipSearchApp app("PT2_Randomized.zcb");
+    ZipSearchApp app;
     app.process(argc, argv);
 }
