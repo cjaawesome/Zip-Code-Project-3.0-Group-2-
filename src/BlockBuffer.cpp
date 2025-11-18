@@ -1,6 +1,7 @@
 #include "BlockBuffer.h"
 #include "RecordBuffer.h"
 #include "ZipCodeRecord.h"
+#include <cstring>
 
 // Simple constructor / destructor to initialize state
 BlockBuffer::BlockBuffer()

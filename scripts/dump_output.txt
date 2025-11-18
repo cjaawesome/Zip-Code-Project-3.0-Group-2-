@@ -1,21 +1,148 @@
+==================================================================
+BUILDING BINARIES
+==================================================================
+
+Binaries built:
+./AddTest
+./RemoveTest
+./ZipSearch
+
+==================================================================
+STEP 1: BUILD BLOCKED SEQUENCE SET (PT2_Randomized)
+==================================================================
+Using CSV: ./data/PT2_Randomized.csv
+Target blocked file: ./data/PT2_Randomized.zcb
+
+== 1A: Convert CSV to blocked sequence set with small block size ==
+Read 40933 records.
+Sorted records by ZipCode.
+Converting ./data/PT2_Randomized.csv to ./data/PT2_Randomized.zcb...
+
+Index Succesfully Created. Now Writing Index.
+Index Successfully Written
+
+
+== 1B: Show header for blocked file ==
+
+=== ZCD File Header Information ===
+File: ./data/PT2_Randomized.zcb
+File Structure Type: ZIPC
+Version: 2
+Header Size: 143 bytes
+Size Format Type: 0 (0=ASCII, 1=Binary)
+Index File: data/zipcode_data.idx
+Has Valid Index: No
+Record Count: 40933
+Field Count: 6
+Primary Key Field: 0
+
+Fields:
+  [0] zipcode (type=1)
+  [1] location (type=3)
+  [2] state (type=4)
+  [3] county (type=3)
+  [4] latitude (type=2)
+  [5] longitude (type=2)
+
+==================================================================
+STEP 2: ADDING RECORDS – NO SPLIT, THEN SPLIT + AVAIL LIST
+==================================================================
+Running AddTest on data/PT2_Randomized.zcb
+(AddTest is instructor-provided and hard-coded to that path.)
+
 === Add Records Test Program ===
 
 --- Loading Header and Index ---
 Header loaded successfully
-  Block Count: 2293
+  Block Count: 4746
 
 --- Adding New Records ---
-Adding ZIP 50000 to RBN 1181... SUCCESS
-Adding ZIP 30000 to RBN 682... SUCCESS
-Adding ZIP 70000 to RBN 1632... SUCCESS
+Adding ZIP 50000 to RBN 2446... SUCCESS
+  Block split occurred (new block count: 4747)
+Adding ZIP 30000 to RBN 1416... SUCCESS
+Adding ZIP 70000 to RBN 3377... SUCCESS
 
 --- Verifying Added Records ---
-Searching for ZIP 50000 at RBN 1181... FOUND
-  Zip: 50000, Test City 1, MN, Test County 1 (45.0000, -93.0000)
-Searching for ZIP 30000 at RBN 682... FOUND
+Searching for ZIP 50000 at RBN 2446... NOT FOUND
+Searching for ZIP 30000 at RBN 1416... FOUND
   Zip: 30000, Test City 2, NY, Test County 2 (40.0000, -74.0000)
-Searching for ZIP 70000 at RBN 1632... FOUND
+Searching for ZIP 70000 at RBN 3377... FOUND
   Zip: 70000, Test City 3, CA, Test County 3 (34.0000, -118.0000)
 
 === Test Completed! ===
 
+
+==================================================================
+STEP 3: DELETING RECORDS – NO REDIS, REDIS, MERGE
+==================================================================
+Running RemoveTest on data/PT2_Randomized.zcb
+(RemoveTest is instructor-provided and uses its own delete scenarios.)
+
+=== Blocked Sequence Set Test Program ===
+
+--- Test 1: Header and Index Loading ---
+Header loaded successfully
+  Block Size: 512
+  Block Count: 4746
+  Record Count: 40933
+  Stale Flag: VALID
+
+Index file exists and was successfully read.
+
+--- Test 2: Record Search ---
+Searching for ZIP 17111 at RBN: 729... 
+FOUND
+  Zip: 17111, Harrisburg, PA, Dauphin (40.2721, -76.8017)
+Searching for ZIP 31836 at RBN: 1515... 
+FOUND
+  Zip: 31836, Woodland, GA, Talbot (32.7900, -84.5654)
+Searching for ZIP 8053 at RBN: 314... 
+FOUND
+  Zip: 08053, Marlton, NJ, Burlington (39.8845, -74.9067)
+
+--- Test 3: Remove Records ---
+Trying to remove ZIP 17111 at RBN: 729... 
+  Block BEFORE removal:
+    Record count: 8
+    Block total size: 426 / 512
+    Utilization: 83.2031%
+    Record to remove size: 52 bytes
+    Predicted size after removal: 370 bytes
+    Min block size threshold: 256 bytes
+SUCCESS
+
+Trying to remove ZIP 31836 at RBN: 1515... 
+  Block BEFORE removal:
+    Record count: 9
+    Block total size: 468 / 512
+    Utilization: 91.4062%
+    Record to remove size: 49 bytes
+    Predicted size after removal: 415 bytes
+    Min block size threshold: 256 bytes
+SUCCESS
+
+Trying to remove ZIP 8053 at RBN: 314... 
+  Block BEFORE removal:
+    Record count: 9
+    Block total size: 476 / 512
+    Utilization: 92.9688%
+    Record to remove size: 51 bytes
+    Predicted size after removal: 421 bytes
+    Min block size threshold: 256 bytes
+SUCCESS
+
+--- Test 4: Verify Records Were Removed ---
+Searching for ZIP 17111 at RBN: 729... 
+NOT FOUND (correct)
+Searching for ZIP 31836 at RBN: 1515... 
+NOT FOUND (correct)
+Searching for ZIP 8053 at RBN: 314... 
+NOT FOUND (correct)
+
+=== Tests Completed Successfully! ===
+
+
+==================================================================
+DEMO COMPLETE
+Output saved to: ./scripts/dump_output.txt
+==================================================================

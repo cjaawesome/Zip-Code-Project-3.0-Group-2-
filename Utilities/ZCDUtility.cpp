@@ -403,7 +403,10 @@ static bool readLengthIndicatedRecordAt(const std::string& zcdPath,
     if (!in.read(reinterpret_cast<char*>(&len), 4)) return false;
 
     out.resize(len);
-    return static_cast<bool>(in.read(out.data(), len));
+    // use &out[0] as a writable buffer in C++11
+    return static_cast<bool>(
+    in.read(&out[0], static_cast<std::streamsize>(len))
+    );
 }
 
 int main(int argc, char* argv[]) 
