@@ -2,7 +2,7 @@
 #define ZIP_SEARCH_APP
 
 #include "../src/BlockIndexFile.h"
-
+#include "../src/HeaderRecord.h"
 #include "../src/CSVBuffer.h"
 #include "../src/ZipCodeRecord.h"
 #include "../src/BlockBuffer.h"
