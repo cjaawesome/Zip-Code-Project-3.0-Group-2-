@@ -101,14 +101,11 @@ bool BlockIndexFile::read(const std::string& filename){
     file >> current; //read in first "{"
     while(current != ENDOFFILE){
         IndexEntry index;
-        file >> current; //read in key
-        index.key = std::stoi(current);
-        file >> current; //read in recordRBN
-        index.recordRBN = std::stoi(current);
-        file >> current; //read in previousRBN
-        index.previousRBN = std::stoi(current);
-        file >> current; //read in nextRBN
-        index.nextRBN = std::stoi(current);
+        // Read key, recordRBN, previousRBN, nextRBN
+        file >> index.key;
+        file >> index.recordRBN;
+        file >> index.previousRBN;
+        file >> index.nextRBN;
 
         indexEntries.push_back(index); //add new index to list
 

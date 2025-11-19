@@ -8,12 +8,78 @@ Binaries built:
 ./ZipSearch
 
 ==================================================================
-STEP 1: BUILD BLOCKED SEQUENCE SET (PT2_Randomized)
+STEP 1: BUILD BLOCKED SEQUENCE SETS (DEFAULT & ~SIX-RECORD BLOCKS)
 ==================================================================
+
+== 1A: Convert SMALL CSV with DEFAULT block size ==
+Data file    : ./data/small.csv
+Blocked file : ./out/small_default.zcb
+Read 8 records.
+Sorted records by ZipCode.
+Converting ./data/small.csv to ./out/small_default.zcb...
+
+Index Succesfully Created. Now Writing Index.
+Index Successfully Written
+
+
+-- Header (small, default block size) --
+
+=== ZCD File Header Information ===
+File: ./out/small_default.zcb
+File Structure Type: ZIPC
+Version: 2
+Header Size: 143 bytes
+Size Format Type: 0 (0=ASCII, 1=Binary)
+Index File: data/zipcode_data.idx
+Has Valid Index: No
+Record Count: 8
+Field Count: 6
+Primary Key Field: 0
+
+Fields:
+  [0] zipcode (type=1)
+  [1] location (type=3)
+  [2] state (type=4)
+  [3] county (type=3)
+  [4] latitude (type=2)
+  [5] longitude (type=2)
+
+== 1B: Convert SMALL CSV with ~SIX-RECORD block size ==
+Data file    : ./data/small.csv
+Blocked file : ./out/small_sixrec.zcb
+Read 8 records.
+Sorted records by ZipCode.
+Converting ./data/small.csv to ./out/small_sixrec.zcb...
+
+Index Succesfully Created. Now Writing Index.
+Index Successfully Written
+
+
+-- Header (small, ~six-record block size) --
+
+=== ZCD File Header Information ===
+File: ./out/small_sixrec.zcb
+File Structure Type: ZIPC
+Version: 2
+Header Size: 143 bytes
+Size Format Type: 0 (0=ASCII, 1=Binary)
+Index File: data/zipcode_data.idx
+Has Valid Index: No
+Record Count: 8
+Field Count: 6
+Primary Key Field: 0
+
+Fields:
+  [0] zipcode (type=1)
+  [1] location (type=3)
+  [2] state (type=4)
+  [3] county (type=3)
+  [4] latitude (type=2)
+  [5] longitude (type=2)
+
+== 1C: Convert PT2_Randomized CSV with ~SIX-RECORD block size ==
 Using CSV: ./data/PT2_Randomized.csv
 Target blocked file: ./data/PT2_Randomized.zcb
-
-== 1A: Convert CSV to blocked sequence set with small block size ==
 Read 40933 records.
 Sorted records by ZipCode.
 Converting ./data/PT2_Randomized.csv to ./data/PT2_Randomized.zcb...
@@ -22,7 +88,7 @@ Index Succesfully Created. Now Writing Index.
 Index Successfully Written
 
 
-== 1B: Show header for blocked file ==
+-- Header (PT2_Randomized, ~six-record block size) --
 
 === ZCD File Header Information ===
 File: ./data/PT2_Randomized.zcb
@@ -48,7 +114,6 @@ Fields:
 STEP 2: ADDING RECORDS – NO SPLIT, THEN SPLIT + AVAIL LIST
 ==================================================================
 Running AddTest on data/PT2_Randomized.zcb
-(AddTest is instructor-provided and hard-coded to that path.)
 
 === Add Records Test Program ===
 
@@ -73,10 +138,14 @@ Searching for ZIP 70000 at RBN 3377... FOUND
 
 
 ==================================================================
-STEP 3: DELETING RECORDS – NO REDIS, REDIS, MERGE
+STEP 3: DELETING RECORDS – NO REDISTRIBUTION, REDISTRIBUTION, MERGE
 ==================================================================
 Running RemoveTest on data/PT2_Randomized.zcb
-(RemoveTest is instructor-provided and uses its own delete scenarios.)
+(RemoveTest with 3 subtests:
+  - Test 1: Delete with NO redistribution or merge
+  - Test 2: Delete that triggers REDISTRIBUTION ONLY
+  - Test 3: Delete that triggers a MERGE, with logically rightmost block
+            cleared and added to the avail list.)
 
 === Blocked Sequence Set Test Program ===
 
@@ -139,7 +208,19 @@ NOT FOUND (correct)
 Searching for ZIP 8053 at RBN: 314... 
 NOT FOUND (correct)
 
-=== Tests Completed Successfully! ===
+--- Test 5: Remove Record Requiring Redistribution (No Merge) ---
+Trying to remove ZIP 49963 at RBN: 2446...
+  Block BEFORE removal:
+    Record count: 5
+    Block total size: 268 / 512
+    Utilization: 52.3438%
+    Record to remove size: 54 bytes
+    Predicted size after removal: 214 bytes
+    Min block size threshold: 256 bytes
+SUCCESS
+
+--- Test 6: Remove Record Requiring Merge (Rightmost Block to Avail List) ---
+No underfull candidate found; skipping Test 6.
 
 
 ==================================================================
